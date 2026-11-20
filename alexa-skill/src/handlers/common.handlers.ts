@@ -49,7 +49,7 @@ export const ErrorHandler: ASKErrorHandler = {
     return true;
   },
   handle(input: HandlerInput, error: Error): Response {
-    console.error('[FinVoice] Erro:', error.message);
+    console.error('[FinanceControl] Erro:', error.message);
     return input.responseBuilder
       .speak('Ocorreu um erro inesperado. Tente novamente.')
       .getResponse();

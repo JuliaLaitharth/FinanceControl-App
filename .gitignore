@@ -21,3 +21,7 @@ xcuserdata/
 gradle-wrapper.jar
 gradlew
 gradlew.bat
+
+# Alexa skill: pacote da Lambda
+alexa-skill/lambda-build/
+alexa-skill/lambda.zip

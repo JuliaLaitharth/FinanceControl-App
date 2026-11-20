@@ -13,7 +13,7 @@ export const LaunchRequestHandler: RequestHandler = {
     if (!accessToken) {
       return input.responseBuilder
         .speak(
-          'Para usar a FinVoice, primeiro vincule sua conta no aplicativo FinanceControl. ' +
+          'Para usar o FinanceControl, primeiro vincule sua conta no aplicativo FinanceControl. ' +
             'Acesse as configurações da skill no seu aplicativo Alexa.',
         )
         .withLinkAccountCard()
@@ -28,7 +28,7 @@ export const LaunchRequestHandler: RequestHandler = {
 
     return input.responseBuilder
       .speak(
-        'Olá! Bem-vindo à FinVoice. ' +
+        'Olá! Bem-vindo ao FinanceControl. ' +
           'Você pode me perguntar: como estão minhas finanças, qual é meu saldo, ' +
           'ou quanto gastei este mês.',
       )

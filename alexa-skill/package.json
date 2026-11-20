@@ -7,11 +7,11 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "test": "jest"
+    "test": "jest",
+    "package": "node scripts/package.js"
   },
   "dependencies": {
     "ask-sdk-core": "^2.14.0",
-    "ask-sdk-local-debug": "^1.1.3",
     "axios": "^1.7.7"
   },
   "devDependencies": {
