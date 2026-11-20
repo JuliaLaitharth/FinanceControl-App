@@ -16,6 +16,13 @@ class ApiClient {
   static const _keyAccessToken = 'access_token';
   static const _keyRefreshToken = 'refresh_token';
 
+  /// Chamado quando o servidor recusa o refresh token (sessão expirada/revogada).
+  static void Function()? onSessaoExpirada;
+
+  /// O refresh token rotaciona no backend: requisições simultâneas com 401
+  /// precisam compartilhar uma única renovação, senão a segunda falha.
+  Future<bool>? _refreshEmAndamento;
+
   ApiClient() {
     _dio = Dio(
       BaseOptions(
@@ -51,11 +58,18 @@ class ApiClient {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (err.response?.statusCode == 401) {
-      final refreshed = await _tryRefresh();
+    final opts = err.requestOptions;
+    final ehRotaAuth = opts.path.startsWith('/auth/login') ||
+        opts.path.startsWith('/auth/register') ||
+        opts.path.startsWith('/auth/refresh');
+    final jaTentou = opts.extra['retried'] == true;
+
+    if (err.response?.statusCode == 401 && !ehRotaAuth && !jaTentou) {
+      final refreshed = await (_refreshEmAndamento ??=
+          _tryRefresh().whenComplete(() => _refreshEmAndamento = null));
       if (refreshed) {
         final token = await _storage.read(key: _keyAccessToken);
-        final opts = err.requestOptions;
+        opts.extra['retried'] = true;
         opts.headers['Authorization'] = 'Bearer $token';
         try {
           final response = await _dio.fetch(opts);
@@ -79,6 +93,25 @@ class ApiClient {
         refreshToken: response.data['refreshToken'] as String,
       );
       return true;
+    } on DioException catch (e) {
+      // Só encerra a sessão se o servidor recusou o token. Falha de rede
+      // (sem conexão, timeout) mantém os tokens para tentar de novo depois.
+      final status = e.response?.statusCode;
+      if (status == 400 || status == 401 || status == 403) {
+        await clearTokens();
+        onSessaoExpirada?.call();
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Há um refresh token guardado? (não valida com o servidor)
+  static Future<bool> temSessao() async {
+    try {
+      final refresh = await _storage.read(key: _keyRefreshToken);
+      return refresh != null && refresh.isNotEmpty;
     } catch (_) {
       return false;
     }

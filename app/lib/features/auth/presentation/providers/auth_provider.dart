@@ -1,7 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/api/api_client.dart';
 import '../../data/auth_repository.dart';
 
-enum AuthStatus { unauthenticated, authenticated }
+/// `unknown`: ainda verificando se há sessão guardada (tela de carregamento).
+enum AuthStatus { unknown, unauthenticated, authenticated }
 
 class AuthState {
   const AuthState({
@@ -32,9 +36,57 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._repo) : super(const AuthState());
+  AuthNotifier(this._repo)
+      : super(const AuthState(status: AuthStatus.unknown)) {
+    ApiClient.onSessaoExpirada = _aoSessaoExpirada;
+  }
 
   final AuthRepository _repo;
+
+  @override
+  void dispose() {
+    ApiClient.onSessaoExpirada = null;
+    super.dispose();
+  }
+
+  /// Chamado na abertura do app: retoma a sessão guardada, se houver.
+  ///
+  /// - Sem tokens → login.
+  /// - Servidor aceita (renovando o token, se preciso) → autenticado.
+  /// - Servidor recusa (401/403) → limpa tudo e volta ao login.
+  /// - Sem conexão ou erro 5xx → mantém a sessão, para o app abrir offline
+  ///   com os dados em cache; um 401 posterior cai em [_aoSessaoExpirada].
+  Future<void> restaurarSessao() async {
+    if (!await _repo.temSessao()) {
+      if (mounted) state = const AuthState(status: AuthStatus.unauthenticated);
+      return;
+    }
+    try {
+      final usuario = await _repo.me();
+      if (!mounted) return;
+      state = AuthState(status: AuthStatus.authenticated, usuario: usuario);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      final status = e.response?.statusCode;
+      if (status == 401 || status == 403) {
+        await _repo.encerrarLocal();
+        if (mounted) state = const AuthState(status: AuthStatus.unauthenticated);
+      } else {
+        state = const AuthState(status: AuthStatus.authenticated);
+      }
+    } catch (_) {
+      if (mounted) state = const AuthState(status: AuthStatus.unauthenticated);
+    }
+  }
+
+  Future<void> _aoSessaoExpirada() async {
+    await _repo.encerrarLocal();
+    if (!mounted) return;
+    state = const AuthState(
+      status: AuthStatus.unauthenticated,
+      errorMessage: 'Sessão expirada. Faça login novamente.',
+    );
+  }
 
   Future<void> register({
     required String nome,
@@ -151,5 +203,5 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(ref.watch(authRepositoryProvider)),
+  (ref) => AuthNotifier(ref.watch(authRepositoryProvider))..restaurarSessao(),
 );

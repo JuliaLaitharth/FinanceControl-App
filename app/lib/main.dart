@@ -17,14 +17,28 @@ class FinanceControlApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
-    final authenticated = authState.status == AuthStatus.authenticated;
+
+    final Widget home = switch (authState.status) {
+      AuthStatus.unknown => const _SplashScreen(),
+      AuthStatus.authenticated => const MainShell(),
+      AuthStatus.unauthenticated => const LoginScreen(),
+    };
 
     return MaterialApp(
       title: 'FinanceControl',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      home: authenticated ? const MainShell() : const LoginScreen(),
+      home: home,
     );
   }
+}
+
+/// Exibida enquanto o app verifica se existe uma sessão guardada.
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: CircularProgressIndicator()));
 }

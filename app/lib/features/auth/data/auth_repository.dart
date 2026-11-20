@@ -71,6 +71,14 @@ class AuthRepository {
     });
   }
 
+  Future<bool> temSessao() => ApiClient.temSessao();
+
+  /// Encerra a sessão só localmente (tokens + cache), sem chamar o servidor.
+  Future<void> encerrarLocal() async {
+    await ApiClient.clearTokens();
+    await LocalDatabase.limpar();
+  }
+
   Future<Map<String, dynamic>> me() async {
     final res = await _client.dio.get('/auth/me');
     return res.data as Map<String, dynamic>;
