@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/auth/presentation/widgets/biometric_gate.dart';
 import 'features/main/presentation/screens/main_shell.dart';
 
 void main() {
@@ -29,6 +30,8 @@ class FinanceControlApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
+      // O bloqueio por biometria fica fora do Navigator para cobrir todas as telas.
+      builder: (context, child) => BiometricGate(child: child ?? const SizedBox.shrink()),
       home: home,
     );
   }

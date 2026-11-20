@@ -1,115 +1,192 @@
-import 'package:dio/dio.dart';
 import 'package:finance_control/core/api/api_client.dart';
-import 'package:finance_control/features/auth/data/auth_repository.dart';
 import 'package:finance_control/features/auth/presentation/providers/auth_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _FakeAuthRepository extends AuthRepository {
-  _FakeAuthRepository({
-    this.tokens = true,
-    this.meResult,
-    this.meError,
-  }) : super(ApiClient());
+import 'support/fakes.dart';
 
-  final bool tokens;
-  final Map<String, dynamic>? meResult;
-  final DioException? meError;
-  int meCalls = 0;
-  int encerrarCalls = 0;
-
-  @override
-  Future<bool> temSessao() async => tokens;
-
-  @override
-  Future<Map<String, dynamic>> me() async {
-    meCalls++;
-    if (meError != null) throw meError!;
-    return meResult ?? {};
-  }
-
-  @override
-  Future<void> encerrarLocal() async => encerrarCalls++;
-}
-
-DioException _erro({int? status}) {
-  final req = RequestOptions(path: '/auth/me');
-  return DioException(
-    requestOptions: req,
-    response: status == null ? null : Response(requestOptions: req, statusCode: status),
-    type: status == null ? DioExceptionType.connectionError : DioExceptionType.badResponse,
-  );
-}
+AuthNotifier _notifier(FakeAuthRepository repo, [FakeBiometricService? bio]) =>
+    AuthNotifier(repo, bio ?? FakeBiometricService());
 
 void main() {
   tearDown(() => ApiClient.onSessaoExpirada = null);
 
-  test('começa em "unknown" até a verificação terminar', () {
-    final n = AuthNotifier(_FakeAuthRepository());
-    expect(n.state.status, AuthStatus.unknown);
-    n.dispose();
+  group('restauração de sessão', () {
+    test('começa em "unknown" até a verificação terminar', () {
+      final n = _notifier(FakeAuthRepository());
+      expect(n.state.status, AuthStatus.unknown);
+      n.dispose();
+    });
+
+    test('sem tokens guardados vai para o login e nem consulta o servidor', () async {
+      final repo = FakeAuthRepository(tokens: false);
+      final n = _notifier(repo);
+      await n.restaurarSessao();
+
+      expect(n.state.status, AuthStatus.unauthenticated);
+      expect(repo.meCalls, 0);
+      n.dispose();
+    });
+
+    test('sessão válida: autenticado e com os dados do usuário', () async {
+      final repo = FakeAuthRepository(meResult: {'nome': 'Julia', 'email': 'j@x.com'});
+      final n = _notifier(repo);
+      await n.restaurarSessao();
+
+      expect(n.state.status, AuthStatus.authenticated);
+      expect(n.state.usuario?['nome'], 'Julia');
+      expect(n.state.bloqueado, isFalse);
+      n.dispose();
+    });
+
+    test('servidor recusa (401): limpa a sessão local e volta ao login', () async {
+      final repo = FakeAuthRepository(meError: erroDio(status: 401));
+      final n = _notifier(repo);
+      await n.restaurarSessao();
+
+      expect(n.state.status, AuthStatus.unauthenticated);
+      expect(repo.encerrarCalls, 1);
+      n.dispose();
+    });
+
+    test('sem conexão: mantém a sessão para abrir offline', () async {
+      final repo = FakeAuthRepository(meError: erroDio());
+      final n = _notifier(repo);
+      await n.restaurarSessao();
+
+      expect(n.state.status, AuthStatus.authenticated);
+      expect(repo.encerrarCalls, 0);
+      n.dispose();
+    });
+
+    test('erro 500 do servidor não derruba a sessão', () async {
+      final repo = FakeAuthRepository(meError: erroDio(status: 500));
+      final n = _notifier(repo);
+      await n.restaurarSessao();
+
+      expect(n.state.status, AuthStatus.authenticated);
+      n.dispose();
+    });
+
+    test('refresh recusado durante o uso desloga com aviso', () async {
+      final repo = FakeAuthRepository(meResult: {'nome': 'Julia'});
+      final n = _notifier(repo);
+      await n.restaurarSessao();
+      expect(n.state.status, AuthStatus.authenticated);
+
+      ApiClient.onSessaoExpirada!();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(n.state.status, AuthStatus.unauthenticated);
+      expect(n.state.errorMessage, contains('Sessão expirada'));
+      expect(repo.encerrarCalls, 1);
+      n.dispose();
+    });
   });
 
-  test('sem tokens guardados vai para o login e nem consulta o servidor', () async {
-    final repo = _FakeAuthRepository(tokens: false);
-    final n = AuthNotifier(repo);
-    await n.restaurarSessao();
+  group('bloqueio por biometria', () {
+    test('biometria ativa no servidor: abre bloqueado', () async {
+      final bio = FakeBiometricService();
+      final n = _notifier(FakeAuthRepository(meResult: {'biometriaAtiva': true}), bio);
+      await n.restaurarSessao();
 
-    expect(n.state.status, AuthStatus.unauthenticated);
-    expect(repo.meCalls, 0);
-    n.dispose();
-  });
+      expect(n.state.status, AuthStatus.authenticated);
+      expect(n.state.bloqueado, isTrue);
+      expect(bio.ativaLocal, isTrue, reason: 'guarda a preferência para uso offline');
+      n.dispose();
+    });
 
-  test('sessão válida: autenticado e com os dados do usuário', () async {
-    final repo = _FakeAuthRepository(meResult: {'nome': 'Julia', 'email': 'j@x.com'});
-    final n = AuthNotifier(repo);
-    await n.restaurarSessao();
+    test('biometria desativada: abre direto', () async {
+      final n = _notifier(FakeAuthRepository(meResult: {'biometriaAtiva': false}));
+      await n.restaurarSessao();
 
-    expect(n.state.status, AuthStatus.authenticated);
-    expect(n.state.usuario?['nome'], 'Julia');
-    n.dispose();
-  });
+      expect(n.state.bloqueado, isFalse);
+      n.dispose();
+    });
 
-  test('servidor recusa (401): limpa a sessão local e volta ao login', () async {
-    final repo = _FakeAuthRepository(meError: _erro(status: 401));
-    final n = AuthNotifier(repo);
-    await n.restaurarSessao();
+    test('offline usa a preferência guardada no aparelho', () async {
+      final bio = FakeBiometricService(ativaLocal: true);
+      final n = _notifier(FakeAuthRepository(meError: erroDio()), bio);
+      await n.restaurarSessao();
 
-    expect(n.state.status, AuthStatus.unauthenticated);
-    expect(repo.encerrarCalls, 1);
-    n.dispose();
-  });
+      expect(n.state.status, AuthStatus.authenticated);
+      expect(n.state.bloqueado, isTrue);
+      n.dispose();
+    });
 
-  test('sem conexão: mantém a sessão para abrir offline', () async {
-    final repo = _FakeAuthRepository(meError: _erro());
-    final n = AuthNotifier(repo);
-    await n.restaurarSessao();
+    test('desbloquear libera o app', () async {
+      final n = _notifier(FakeAuthRepository(meResult: {'biometriaAtiva': true}));
+      await n.restaurarSessao();
+      n.desbloquear();
 
-    expect(n.state.status, AuthStatus.authenticated);
-    expect(repo.encerrarCalls, 0);
-    n.dispose();
-  });
+      expect(n.state.bloqueado, isFalse);
+      n.dispose();
+    });
 
-  test('erro 500 do servidor não derruba a sessão', () async {
-    final repo = _FakeAuthRepository(meError: _erro(status: 500));
-    final n = AuthNotifier(repo);
-    await n.restaurarSessao();
+    test('bloquearSeAtiva trava de novo só se a biometria estiver ativa', () async {
+      final ativo = _notifier(FakeAuthRepository(meResult: {'biometriaAtiva': true}));
+      await ativo.restaurarSessao();
+      ativo.desbloquear();
+      await ativo.bloquearSeAtiva();
+      expect(ativo.state.bloqueado, isTrue);
+      ativo.dispose();
 
-    expect(n.state.status, AuthStatus.authenticated);
-    n.dispose();
-  });
+      final inativo = _notifier(FakeAuthRepository(meResult: {'biometriaAtiva': false}));
+      await inativo.restaurarSessao();
+      await inativo.bloquearSeAtiva();
+      expect(inativo.state.bloqueado, isFalse);
+      inativo.dispose();
+    });
 
-  test('refresh recusado durante o uso desloga com aviso', () async {
-    final repo = _FakeAuthRepository(meResult: {'nome': 'Julia'});
-    final n = AuthNotifier(repo);
-    await n.restaurarSessao();
-    expect(n.state.status, AuthStatus.authenticated);
+    test('ativar exige aparelho com biometria', () async {
+      final repo = FakeAuthRepository(meResult: {'biometriaAtiva': false});
+      final n = _notifier(repo, FakeBiometricService(estaDisponivel: false));
+      await n.restaurarSessao();
 
-    ApiClient.onSessaoExpirada!();
-    await Future<void>.delayed(Duration.zero);
+      final erro = await n.toggleBiometria(ativa: true);
 
-    expect(n.state.status, AuthStatus.unauthenticated);
-    expect(n.state.errorMessage, contains('Sessão expirada'));
-    expect(repo.encerrarCalls, 1);
-    n.dispose();
+      expect(erro, contains('indisponível'));
+      expect(repo.ultimaBiometriaEnviada, isNull, reason: 'não chega ao servidor');
+      n.dispose();
+    });
+
+    test('ativar exige confirmar a biometria agora', () async {
+      final repo = FakeAuthRepository(meResult: {'biometriaAtiva': false});
+      final n = _notifier(repo, FakeBiometricService(resultados: [false]));
+      await n.restaurarSessao();
+
+      final erro = await n.toggleBiometria(ativa: true);
+
+      expect(erro, isNotNull);
+      expect(repo.ultimaBiometriaEnviada, isNull);
+      n.dispose();
+    });
+
+    test('ativar com sucesso grava no servidor e no aparelho', () async {
+      final repo = FakeAuthRepository(meResult: {'biometriaAtiva': false});
+      final bio = FakeBiometricService(resultados: [true]);
+      final n = _notifier(repo, bio);
+      await n.restaurarSessao();
+
+      final erro = await n.toggleBiometria(ativa: true);
+
+      expect(erro, isNull);
+      expect(repo.ultimaBiometriaEnviada, isTrue);
+      expect(bio.ativaLocal, isTrue);
+      n.dispose();
+    });
+
+    test('desativar não pede biometria', () async {
+      final repo = FakeAuthRepository(meResult: {'biometriaAtiva': true});
+      final bio = FakeBiometricService();
+      final n = _notifier(repo, bio);
+      await n.restaurarSessao();
+
+      final erro = await n.toggleBiometria(ativa: false);
+
+      expect(erro, isNull);
+      expect(bio.autenticacoes, 0);
+      expect(repo.ultimaBiometriaEnviada, isFalse);
+      n.dispose();
+    });
   });
 }

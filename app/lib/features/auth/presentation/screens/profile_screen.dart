@@ -65,7 +65,15 @@ class ProfileScreen extends ConsumerWidget {
             secondary: const Icon(Icons.fingerprint),
             title: const Text('Biometria / Face ID'),
             value: biometriaAtiva,
-            onChanged: (v) => ref.read(authProvider.notifier).toggleBiometria(ativa: v),
+            onChanged: (v) async {
+              final erro = await ref
+                  .read(authProvider.notifier)
+                  .toggleBiometria(ativa: v);
+              if (erro != null && context.mounted) {
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(SnackBar(content: Text(erro)));
+              }
+            },
           ),
 
           const Divider(),
