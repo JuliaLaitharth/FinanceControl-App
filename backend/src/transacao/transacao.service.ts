@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service.js';
 import { EncryptionService } from '../encryption/encryption.service.js';
 import { PluggyAdapter } from '../pluggy/pluggy.adapter.js';
@@ -230,32 +230,56 @@ export class TransacaoService {
     return { meses: result };
   }
 
-  /** Resumo de gastos por categoria para a Alexa Skill (ConsultarGastosIntent). */
+  /**
+   * Gastos por categoria no período [dataInicio, dataFim) — usado pelos relatórios
+   * do app e pela Alexa Skill (ConsultarGastosIntent). Sem dataInicio, o mês atual;
+   * sem dataFim, até hoje.
+   *
+   * As datas das transações são gravadas à meia-noite UTC, então o início do mês
+   * padrão também é calculado em UTC (no fuso local do servidor, as compras do dia 1º
+   * ficavam de fora).
+   */
   async resumoCategorias(
     usuarioId: number,
     dataInicio?: string,
-  ): Promise<{ categorias: Array<{ nome: string; total: number }> }> {
+    dataFim?: string,
+  ): Promise<{
+    categorias: Array<{ nome: string; icone: string | null; total: number; quantidade: number }>;
+  }> {
+    const hoje = new Date();
     const inicio = dataInicio
       ? new Date(dataInicio)
-      : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      : new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), 1));
+    const fim = dataFim ? new Date(dataFim) : null;
+    if (Number.isNaN(inicio.getTime()) || (fim && Number.isNaN(fim.getTime()))) {
+      throw new BadRequestException('Data inválida. Use o formato AAAA-MM-DD.');
+    }
 
     const transacoes = await this.prisma.transacao.findMany({
       where: {
         conta: { consentimento: { usuarioId, status: 'ATIVO' } },
         tipo: 'DEBIT',
-        data: { gte: inicio },
+        data: { gte: inicio, ...(fim ? { lt: fim } : {}) },
       },
-      include: { categoria: { select: { nome: true } } },
+      include: { categoria: { select: { nome: true, icone: true } } },
     });
 
-    const mapa: Record<string, number> = {};
+    const mapa = new Map<string, { icone: string | null; total: number; quantidade: number }>();
     for (const tx of transacoes) {
       const nome = tx.categoria?.nome ?? 'Outros';
-      mapa[nome] = (mapa[nome] ?? 0) + Number(tx.valor);
+      const item = mapa.get(nome) ?? { icone: tx.categoria?.icone ?? null, total: 0, quantidade: 0 };
+      item.total += Number(tx.valor);
+      item.quantidade += 1;
+      mapa.set(nome, item);
     }
 
-    const categorias = Object.entries(mapa)
-      .map(([nome, total]) => ({ nome, total: Math.round(total * 100) / 100 }))
+    const categorias = [...mapa.entries()]
+      .map(([nome, v]) => ({
+        nome,
+        icone: v.icone,
+        total: Math.round(v.total * 100) / 100,
+        quantidade: v.quantidade,
+      }))
       .sort((a, b) => b.total - a.total);
 
     return { categorias };

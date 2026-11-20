@@ -49,8 +49,9 @@ export class TransacaoController {
   resumoCategorias(
     @Request() req: { user: { sub: number } },
     @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
   ) {
-    return this.service.resumoCategorias(req.user.sub, dataInicio);
+    return this.service.resumoCategorias(req.user.sub, dataInicio, dataFim);
   }
 
   @Patch(':id/categoria')

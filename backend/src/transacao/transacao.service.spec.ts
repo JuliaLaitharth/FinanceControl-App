@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { BadRequestException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { PluggyAdapter } from '../pluggy/pluggy.adapter';
@@ -302,6 +303,62 @@ describe('TransacaoService', () => {
       // A segunda conta ainda sincronizou
       expect(result.sincronizadas).toBe(1);
       expect(prisma.transacao.upsert).toHaveBeenCalledTimes(1);
+    });
+  });
+  // ─── resumoCategorias ────────────────────────────────────────────────────
+
+  describe('resumoCategorias()', () => {
+    const tx = (valor: string, categoria: { nome: string; icone: string } | null) =>
+      txBdFake({ valor, categoria }) as never;
+
+    it('soma por categoria, conta lançamentos e ordena do maior para o menor', async () => {
+      prisma.transacao.findMany.mockResolvedValue([
+        tx('100.10', { nome: 'Lazer', icone: '🎮' }),
+        tx('800.00', { nome: 'Moradia', icone: '🏠' }),
+        tx('50.00', { nome: 'Lazer', icone: '🎮' }),
+        tx('20.00', null), // sem categoria → Outros
+      ]);
+
+      const { categorias } = await service.resumoCategorias(42, '2026-11-01');
+
+      expect(categorias).toEqual([
+        { nome: 'Moradia', icone: '🏠', total: 800, quantidade: 1 },
+        { nome: 'Lazer', icone: '🎮', total: 150.1, quantidade: 2 },
+        { nome: 'Outros', icone: null, total: 20, quantidade: 1 },
+      ]);
+    });
+
+    it('filtra o período [dataInicio, dataFim) e só despesas do usuário', async () => {
+      prisma.transacao.findMany.mockResolvedValue([]);
+
+      await service.resumoCategorias(42, '2026-10-01', '2026-11-01');
+
+      expect(prisma.transacao.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tipo: 'DEBIT',
+            conta: { consentimento: { usuarioId: 42, status: 'ATIVO' } },
+            data: { gte: new Date('2026-10-01'), lt: new Date('2026-11-01') },
+          }),
+        }),
+      );
+    });
+
+    it('sem datas usa o início do mês atual em UTC e não limita o fim', async () => {
+      prisma.transacao.findMany.mockResolvedValue([]);
+
+      await service.resumoCategorias(42);
+
+      const hoje = new Date();
+      const where = (prisma.transacao.findMany.mock.calls[0]![0] as { where: { data: Record<string, Date> } }).where;
+      expect(where.data.gte).toEqual(new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), 1)));
+      expect(where.data.lt).toBeUndefined();
+    });
+
+    it('rejeita data inválida', async () => {
+      await expect(service.resumoCategorias(42, 'ontem')).rejects.toThrow(BadRequestException);
+      await expect(service.resumoCategorias(42, '2026-11-01', 'xx')).rejects.toThrow(BadRequestException);
+      expect(prisma.transacao.findMany).not.toHaveBeenCalled();
     });
   });
 });
