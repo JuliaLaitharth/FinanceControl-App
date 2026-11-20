@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
-import { createHmac, createHash, timingSafeEqual } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 import { PLUGGY_SYNC_QUEUE } from '../worker/worker.processor.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -38,10 +38,9 @@ export class WebhookController {
   @HttpCode(200)
   async handlePluggy(
     @Body() payload: PluggyWebhookPayload,
-    @Headers('x-pluggy-signature') signature: string,
-    @Body('_raw') raw: string,
+    @Headers('x-webhook-secret') secretHeader: string,
   ) {
-    this.validarAssinatura(raw ?? JSON.stringify(payload), signature);
+    this.validarSegredo(secretHeader);
 
     const rawItemId = payload.item?.id ?? payload.itemId;
     this.logger.log(
@@ -80,16 +79,17 @@ export class WebhookController {
     return { received: true };
   }
 
-  private validarAssinatura(body: string, signature: string) {
-    if (!signature) throw new UnauthorizedException('Assinatura do webhook ausente');
-    const esperado = createHmac('sha256', this.secret).update(body).digest('hex');
-    const sigBuffer = Buffer.from(signature);
-    const expBuffer = Buffer.from(esperado);
-    if (
-      sigBuffer.length !== expBuffer.length ||
-      !timingSafeEqual(sigBuffer, expBuffer)
-    ) {
-      throw new UnauthorizedException('Assinatura do webhook inválida');
+  /**
+   * O Pluggy não assina webhooks de item com HMAC: a autenticação é um header
+   * customizado, definido por nós ao cadastrar o webhook (POST /webhooks, campo
+   * `headers`). Aqui comparamos esse header com PLUGGY_WEBHOOK_SECRET.
+   */
+  private validarSegredo(recebido: string | undefined) {
+    if (!recebido) throw new UnauthorizedException('Segredo do webhook ausente');
+    const a = createHash('sha256').update(recebido).digest();
+    const b = createHash('sha256').update(this.secret).digest();
+    if (!timingSafeEqual(a, b)) {
+      throw new UnauthorizedException('Segredo do webhook inválido');
     }
   }
 }

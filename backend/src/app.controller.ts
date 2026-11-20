@@ -9,4 +9,10 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  /** Healthcheck público usado pelo Railway/Render. */
+  @Get('health')
+  health(): { status: string; uptime: number } {
+    return { status: 'ok', uptime: Math.round(process.uptime()) };
+  }
 }

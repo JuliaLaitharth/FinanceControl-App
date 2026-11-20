@@ -155,7 +155,8 @@ export class TransacaoService {
                 contaId: conta.id,
                 idExternoPluggy: tx.id,
                 descricao: tx.description ?? 'Sem descrição',
-                valor: tx.amount,
+                // O sinal de amount varia por tipo de conta no Pluggy; a direção já vem em `tipo`.
+                valor: Math.abs(tx.amount),
                 tipo: tx.type,
                 data: new Date(tx.date),
                 metodoPagamento: (tx as Record<string, unknown>)['paymentData']
