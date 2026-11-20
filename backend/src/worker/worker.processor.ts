@@ -14,6 +14,10 @@ export interface PluggySyncJobData {
 
 export const PLUGGY_SYNC_QUEUE = 'pluggy-sync';
 
+/** Canal da regra: PUSH (app), ALEXA (alerta proativo) ou AMBOS. */
+export const enviaPush = (canal: string): boolean => canal === 'PUSH' || canal === 'AMBOS';
+export const enviaAlexa = (canal: string): boolean => canal === 'ALEXA' || canal === 'AMBOS';
+
 @Processor(PLUGGY_SYNC_QUEUE, {
   // Reprocessamento automático: 3 tentativas com backoff exponencial
   concurrency: 2,
@@ -66,7 +70,7 @@ export class SyncWorkerProcessor extends WorkerHost {
 
     for (const regra of regras) {
       if (regra.tipoEvento === 'SALDO_MINIMO') {
-        await this.avaliarSaldoMinimo(regra, contas, usuario?.fcmToken ?? null);
+        await this.avaliarSaldoMinimo(usuarioId, regra, contas, usuario?.fcmToken ?? null);
         continue;
       }
 
@@ -79,7 +83,7 @@ export class SyncWorkerProcessor extends WorkerHost {
             canal: regra.canal,
           });
 
-          if (notif && usuario?.fcmToken && regra.canal !== 'EMAIL') {
+          if (notif && usuario?.fcmToken && enviaPush(regra.canal)) {
             const enviado = await this.fcmService.enviar(
               usuario.fcmToken,
               'Alerta Financeiro',
@@ -92,7 +96,7 @@ export class SyncWorkerProcessor extends WorkerHost {
             );
           }
 
-          if (notif) {
+          if (notif && enviaAlexa(regra.canal)) {
             await this.alexaService.enviarAlertaTransacao(usuarioId, notif.mensagem);
           }
         }
@@ -118,12 +122,14 @@ export class SyncWorkerProcessor extends WorkerHost {
   }
 
   private async avaliarSaldoMinimo(
+    usuarioId: number,
     regra: { id: number; valorLimite: unknown; canal: string },
     contas: Array<{ id: number; saldoAtual: unknown; tipo: string }>,
     fcmToken: string | null,
   ) {
     const limite = Number(regra.valorLimite ?? 0);
-    for (const conta of contas) {
+    // Cartão de crédito tem saldo negativo (fatura em aberto): não é "saldo mínimo".
+    for (const conta of contas.filter((c) => c.tipo !== 'CREDIT')) {
       if (Number(conta.saldoAtual) < limite) {
         // Idempotência para saldo mínimo: verifica se já notificou nas últimas 24h
         const jaNot = await this.prisma.notificacao.findFirst({
@@ -143,9 +149,12 @@ export class SyncWorkerProcessor extends WorkerHost {
           canal: regra.canal,
         });
 
-        if (notif && fcmToken && regra.canal !== 'EMAIL') {
+        if (notif && fcmToken && enviaPush(regra.canal)) {
           const enviado = await this.fcmService.enviar(fcmToken, 'Saldo baixo', mensagem);
           await this.notificacaoService.atualizarStatus(notif.id, enviado ? 'ENVIADO' : 'FALHA', new Date());
+        }
+        if (notif && enviaAlexa(regra.canal)) {
+          await this.alexaService.enviarAlertaTransacao(usuarioId, mensagem);
         }
       }
     }

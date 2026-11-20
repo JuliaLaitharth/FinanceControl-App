@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -15,14 +16,26 @@ export class RegraAlertaService {
     private readonly audit: AuditService,
   ) {}
 
+  /** Regras que independem do formato do DTO: limite > 0 e categoria quando o tipo exige. */
+  private validar(tipoEvento: string, valorLimite: unknown, categoriaId: unknown) {
+    if (valorLimite === null || valorLimite === undefined || Number(valorLimite) <= 0) {
+      throw new BadRequestException('Informe um valor limite maior que zero.');
+    }
+    if (tipoEvento === 'DESPESA_CATEGORIA' && (categoriaId === null || categoriaId === undefined)) {
+      throw new BadRequestException('Escolha a categoria da regra.');
+    }
+  }
+
   async criar(dto: CreateRegraAlertaDto, usuarioId: number, ip?: string) {
+    this.validar(dto.tipoEvento, dto.valorLimite, dto.categoriaId);
     const regra = await this.prisma.regraAlerta.create({
       data: {
         usuarioId,
         tipoEvento: dto.tipoEvento,
         operador: dto.operador ?? null,
         valorLimite: dto.valorLimite ?? null,
-        categoriaId: dto.categoriaId ?? null,
+        // Só o tipo "despesa por categoria" usa categoria.
+        categoriaId: dto.tipoEvento === 'DESPESA_CATEGORIA' ? (dto.categoriaId ?? null) : null,
         canal: dto.canal,
       },
     });
@@ -44,14 +57,26 @@ export class RegraAlertaService {
     usuarioId: number,
     ip?: string,
   ) {
-    await this.garantirProprietario(id, usuarioId);
+    const atual = await this.garantirProprietario(id, usuarioId);
+
+    // Valida o estado final (regra existente + alterações), não só o que veio no corpo.
+    const tipoFinal = dto.tipoEvento ?? atual.tipoEvento;
+    const limiteFinal = dto.valorLimite !== undefined ? dto.valorLimite : atual.valorLimite;
+    const categoriaFinal = dto.categoriaId !== undefined ? dto.categoriaId : atual.categoriaId;
+    this.validar(tipoFinal, limiteFinal, categoriaFinal);
+
     const regra = await this.prisma.regraAlerta.update({
       where: { id },
       data: {
         ...(dto.tipoEvento ? { tipoEvento: dto.tipoEvento } : {}),
         ...(dto.operador !== undefined ? { operador: dto.operador } : {}),
         ...(dto.valorLimite !== undefined ? { valorLimite: dto.valorLimite } : {}),
-        ...(dto.categoriaId !== undefined ? { categoriaId: dto.categoriaId } : {}),
+        // Ao trocar para um tipo que não usa categoria, limpa a antiga.
+        ...(tipoFinal !== 'DESPESA_CATEGORIA'
+          ? { categoriaId: null }
+          : dto.categoriaId !== undefined
+            ? { categoriaId: dto.categoriaId }
+            : {}),
         ...(dto.canal ? { canal: dto.canal } : {}),
         ...(dto.ativa !== undefined ? { ativa: dto.ativa } : {}),
       },
