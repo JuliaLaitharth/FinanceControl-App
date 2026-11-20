@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException } from '@nestjs/common';
+import { HttpException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { createPrismaMock } from '../test-utils/prisma.mock';
 import { OauthService } from './oauth.service';
@@ -44,7 +44,14 @@ describe('OauthService', () => {
     jwt = {
       signAsync: jest.fn().mockResolvedValue('jwt-access-token') as jest.MockedFunction<JwtService['signAsync']>,
     } as unknown as jest.Mocked<JwtService>;
-    service = new OauthService(prisma as never, jwt);
+    service = new OauthService(prisma as never, jwt, {
+      get: (k: string) =>
+        ({
+          ALEXA_OAUTH_CLIENT_ID: 'skill-id',
+          ALEXA_OAUTH_CLIENT_SECRET: 'skill-secret',
+          ALEXA_REDIRECT_URIS: 'https://pitangui.amazon.com/cb, https://layla.amazon.com/cb',
+        })[k],
+    } as never);
   });
 
   // ─── validarCredenciais ──────────────────────────────────────────────────
@@ -56,10 +63,52 @@ describe('OauthService', () => {
       expect(result.id).toBe(1);
     });
 
-    it('lança UnauthorizedException com senha errada', async () => {
+    it('lança UnauthorizedException com senha errada e conta a tentativa', async () => {
       prisma.usuario.findUnique.mockResolvedValue(usuarioFake() as never);
+      prisma.usuario.update.mockResolvedValue({ tentativasFalhas: 1 } as never);
+
       await expect(service.validarCredenciais('user@test.com', 'errada')).rejects.toThrow(
         UnauthorizedException,
+      );
+      expect(prisma.usuario.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { tentativasFalhas: { increment: 1 } } }),
+      );
+    });
+
+    it('bloqueia por 15 minutos na 5ª falha', async () => {
+      prisma.usuario.findUnique.mockResolvedValue(usuarioFake() as never);
+      prisma.usuario.update.mockResolvedValue({ tentativasFalhas: 5 } as never);
+
+      await expect(service.validarCredenciais('user@test.com', 'errada')).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      expect(prisma.usuario.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          data: { tentativasFalhas: 0, bloqueadoAte: expect.any(Date) },
+        }),
+      );
+    });
+
+    it('recusa (429) conta bloqueada, mesmo com a senha certa', async () => {
+      prisma.usuario.findUnique.mockResolvedValue(
+        usuarioFake({ bloqueadoAte: new Date(Date.now() + 10 * 60_000) }) as never,
+      );
+
+      await expect(service.validarCredenciais('user@test.com', 'senha123')).rejects.toThrow(
+        HttpException,
+      );
+      expect(prisma.usuario.update).not.toHaveBeenCalled();
+    });
+
+    it('zera as falhas anteriores depois de um login correto', async () => {
+      prisma.usuario.findUnique.mockResolvedValue(usuarioFake({ tentativasFalhas: 3 }) as never);
+      prisma.usuario.update.mockResolvedValue({} as never);
+
+      await service.validarCredenciais('user@test.com', 'senha123');
+
+      expect(prisma.usuario.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { tentativasFalhas: 0, bloqueadoAte: null } }),
       );
     });
 

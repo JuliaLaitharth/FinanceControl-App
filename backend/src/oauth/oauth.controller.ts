@@ -3,16 +3,20 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
+  Logger,
   Post,
   Query,
   Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { IsEmail, IsString } from 'class-validator';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { jsonSeguro, lerBasic } from './alexa-oauth.config.js';
 import { OauthService } from './oauth.service.js';
 
-class LoginOAuthDto {
+export class LoginOAuthDto {
   @IsEmail()
   email!: string;
 
@@ -26,13 +30,36 @@ class LoginOAuthDto {
   state!: string;
 }
 
-class TokenDto {
+/**
+ * Corpo de POST /oauth/token (application/x-www-form-urlencoded).
+ *
+ * Todo campo precisa de decorator: o ValidationPipe global usa `whitelist: true` e
+ * remove propriedades sem decorator — sem isso `code` e `redirect_uri` chegavam
+ * vazios e a Alexa nunca conseguia trocar o código por token.
+ */
+export class TokenDto {
   @IsString()
   grant_type!: string;
 
+  @IsOptional()
+  @IsString()
   code?: string;
+
+  @IsOptional()
+  @IsString()
   redirect_uri?: string;
+
+  @IsOptional()
+  @IsString()
   refresh_token?: string;
+
+  @IsOptional()
+  @IsString()
+  client_id?: string;
+
+  @IsOptional()
+  @IsString()
+  client_secret?: string;
 }
 
 const htmlPagina = (redirectUri: string, state: string) => `<!DOCTYPE html>
@@ -86,8 +113,8 @@ const htmlPagina = (redirectUri: string, state: string) => `<!DOCTYPE html>
           body: JSON.stringify({
             email: document.getElementById('email').value,
             senha: document.getElementById('senha').value,
-            redirectUri: ${JSON.stringify(redirectUri)},
-            state: ${JSON.stringify(state)},
+            redirectUri: ${jsonSeguro(redirectUri)},
+            state: ${jsonSeguro(state)},
           }),
         });
         const data = await res.json();
@@ -101,22 +128,37 @@ const htmlPagina = (redirectUri: string, state: string) => `<!DOCTYPE html>
 
 @Controller('oauth')
 export class OauthController {
+  private readonly logger = new Logger('OAuth');
+
   constructor(private readonly oauthService: OauthService) {}
 
   @Get('authorize')
   paginaAutorizar(
     @Query('redirect_uri') redirectUri: string,
     @Query('state') state: string,
+    @Query('client_id') clientId: string,
     @Res() res: Response,
   ) {
     if (!redirectUri || !state) {
       return res.status(400).send('Parâmetros redirect_uri e state são obrigatórios');
+    }
+    if (!this.oauthService.clienteIdConfere(clientId)) {
+      this.logger.warn(`authorize recusado: client_id inválido (recebido: "${clientId ?? ''}")`);
+      return res.status(400).send('client_id inválido');
+    }
+    if (!this.oauthService.redirectUriPermitido(redirectUri)) {
+      this.logger.warn(`authorize recusado: redirect_uri fora da lista (${redirectUri})`);
+      return res.status(400).send('redirect_uri não autorizado');
     }
     return res.type('html').send(htmlPagina(redirectUri, state));
   }
 
   @Post('authorize')
   async processarLogin(@Body() dto: LoginOAuthDto) {
+    // O POST também é público: não confia que a página anterior validou o destino.
+    if (!this.oauthService.redirectUriPermitido(dto.redirectUri)) {
+      throw new BadRequestException('redirect_uri não autorizado');
+    }
     const usuario = await this.oauthService.validarCredenciais(dto.email, dto.senha);
     const codigo = await this.oauthService.gerarCodigo(usuario.id, dto.redirectUri);
 
@@ -128,7 +170,21 @@ export class OauthController {
 
   @Post('token')
   @HttpCode(200)
-  async token(@Body() dto: TokenDto) {
+  async token(@Body() dto: TokenDto, @Headers('authorization') authorization?: string) {
+    // A Alexa envia as credenciais da skill em HTTP Basic (ou no corpo, conforme o console).
+    const basic = lerBasic(authorization);
+    const id = basic?.id ?? dto.client_id;
+    const secret = basic?.secret ?? dto.client_secret;
+    if (!this.oauthService.clienteValido(id, secret)) {
+      // Nunca registra o segredo: só o id (público) e o tamanho do que chegou.
+      this.logger.warn(
+        `token recusado (invalid_client): credenciais via ${basic ? 'header Basic' : dto.client_id ? 'corpo' : 'NENHUMA'}, ` +
+          `client_id="${id ?? ''}", secret com ${secret?.length ?? 0} caractere(s), grant_type=${dto.grant_type}`,
+      );
+      throw new UnauthorizedException('invalid_client');
+    }
+    this.logger.log(`token: cliente ok, grant_type=${dto.grant_type}`);
+
     if (dto.grant_type === 'authorization_code') {
       if (!dto.code || !dto.redirect_uri) {
         throw new BadRequestException('code e redirect_uri são obrigatórios');

@@ -2,6 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
 
+/**
+ * Enquanto a skill está em desenvolvimento (não publicada), a Amazon só aceita
+ * eventos em /stages/development; o endereço de produção responde com erro.
+ * Defina ALEXA_SKILL_STAGE=live depois de publicar a skill.
+ */
+export const urlProactiveEvents = (stage: string | undefined): string =>
+  stage === 'live'
+    ? 'https://api.amazonalexa.com/v1/proactiveEvents'
+    : 'https://api.amazonalexa.com/v1/proactiveEvents/stages/development';
+
 @Injectable()
 export class AlexaService {
   private readonly logger = new Logger(AlexaService.name);
@@ -78,7 +88,7 @@ export class AlexaService {
       };
 
       await axios.post(
-        'https://api.amazonalexa.com/v1/proactiveEvents',
+        urlProactiveEvents(this.config.get<string>('ALEXA_SKILL_STAGE')),
         evento,
         { headers: { Authorization: `Bearer ${lwaToken}` } },
       );
