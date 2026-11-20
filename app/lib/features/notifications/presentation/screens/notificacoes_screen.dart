@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../alert_rules/presentation/screens/regras_alerta_screen.dart';
 import '../providers/notificacoes_provider.dart';
 
 class NotificacoesScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,12 @@ class _NotificacoesScreenState extends ConsumerState<NotificacoesScreen> {
         () => ref.read(notificacoesProvider.notifier).carregar());
   }
 
+  void _abrirRegras() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const RegrasAlertaScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(notificacoesProvider);
@@ -34,6 +41,11 @@ class _NotificacoesScreenState extends ConsumerState<NotificacoesScreen> {
                   ref.read(notificacoesProvider.notifier).marcarTodasComoLidas(),
               child: const Text('Marcar todas como lidas'),
             ),
+          IconButton(
+            icon: const Icon(Icons.tune),
+            tooltip: 'Regras de alerta',
+            onPressed: _abrirRegras,
+          ),
         ],
       ),
       body: Builder(
@@ -43,15 +55,26 @@ class _NotificacoesScreenState extends ConsumerState<NotificacoesScreen> {
           }
 
           if (state.notificacoes.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.notifications_none_outlined,
+                  const Icon(Icons.notifications_none_outlined,
                       size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('Nenhuma notificação',
+                  const SizedBox(height: 16),
+                  const Text('Nenhuma notificação',
                       style: TextStyle(fontSize: 16)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Os alertas aparecem aqui quando uma regra for atendida.',
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _abrirRegras,
+                    icon: const Icon(Icons.tune),
+                    label: const Text('Configurar regras de alerta'),
+                  ),
                 ],
               ),
             );
