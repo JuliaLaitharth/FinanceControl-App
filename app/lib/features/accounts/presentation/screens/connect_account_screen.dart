@@ -1,12 +1,18 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_pluggy_connect/flutter_pluggy_connect.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import '../providers/accounts_provider.dart';
 
-/// Abre o Pluggy Connect Widget em um WebView.
-/// Intercepta a URL de callback `financecontrol://connect?itemId=XXX`
-/// retornada pelo widget e envia o itemId ao backend.
+/// Em debug, o widget lista também os conectores de sandbox (ex.: "Pluggy Bank").
+/// Em release fica desligado; force com --dart-define=PLUGGY_SANDBOX=true.
+const _kIncludeSandbox =
+    bool.fromEnvironment('PLUGGY_SANDBOX', defaultValue: kDebugMode);
+
+/// Abre o Pluggy Connect (SDK oficial) e, ao concluir, envia o itemId ao backend.
+///
+/// O widget devolve o resultado em `onSuccess({'item': {'id': ...}})`.
 class ConnectAccountScreen extends ConsumerStatefulWidget {
   const ConnectAccountScreen({super.key});
 
@@ -16,12 +22,10 @@ class ConnectAccountScreen extends ConsumerStatefulWidget {
 }
 
 class _ConnectAccountScreenState extends ConsumerState<ConnectAccountScreen> {
-  static const _callbackScheme = 'financecontrol';
-  static const _pluggyWidgetBase = 'https://connect.pluggy.ai';
-
-  WebViewController? _controller;
-  bool _loading = true;
+  String? _connectToken;
   String? _errorMsg;
+  bool _registrando = false;
+  bool _finalizado = false;
 
   @override
   void initState() {
@@ -31,64 +35,37 @@ class _ConnectAccountScreenState extends ConsumerState<ConnectAccountScreen> {
 
   Future<void> _iniciar() async {
     final token = await ref.read(accountsProvider.notifier).gerarConnectToken();
-    if (token == null) {
-      if (mounted) {
-        setState(() {
-          _errorMsg = 'Não foi possível iniciar a conexão bancária.';
-          _loading = false;
-        });
-      }
-      return;
-    }
-
-    final url =
-        '$_pluggyWidgetBase/?connectToken=$token'
-        '&connectorTypes=PERSONAL_BANK,BUSINESS_BANK,INVESTMENT'
-        '&onSuccess=$_callbackScheme://connect'
-        '&onError=$_callbackScheme://error';
-
-    final controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: _interceptarNavegacao,
-          onPageStarted: (_) => setState(() => _loading = true),
-          onPageFinished: (_) => setState(() => _loading = false),
-          onWebResourceError: (err) => setState(() {
-            _loading = false;
-            _errorMsg = 'Erro ao carregar o widget de conexão.';
-          }),
-        ),
-      )
-      ..loadRequest(Uri.parse(url));
-
-    if (mounted) setState(() => _controller = controller);
+    if (!mounted) return;
+    setState(() {
+      _connectToken = token;
+      _errorMsg =
+          token == null ? 'Não foi possível iniciar a conexão bancária.' : null;
+    });
   }
 
-  NavigationDecision _interceptarNavegacao(NavigationRequest req) {
-    final uri = Uri.tryParse(req.url);
-    if (uri == null) return NavigationDecision.navigate;
-
-    if (uri.scheme == _callbackScheme) {
-      if (uri.host == 'connect') {
-        final itemId = uri.queryParameters['itemId'];
-        if (itemId != null && itemId.isNotEmpty) {
-          _registrar(itemId);
-        } else {
-          Navigator.pop(context, false);
-        }
-      } else {
-        // Usuário cancelou ou ocorreu erro no widget
-        Navigator.pop(context, false);
-      }
-      return NavigationDecision.prevent;
+  void _aoConcluir(dynamic data) {
+    final itemId = _extrairItemId(data);
+    if (itemId == null) {
+      _encerrar(false, 'Não foi possível identificar a conexão criada.');
+      return;
     }
-    return NavigationDecision.navigate;
+    _registrar(itemId);
+  }
+
+  String? _extrairItemId(dynamic data) {
+    if (data is Map) {
+      final item = data['item'];
+      if (item is Map) {
+        final id = item['id'];
+        if (id is String && id.isNotEmpty) return id;
+      }
+    }
+    return null;
   }
 
   Future<void> _registrar(String itemId) async {
-    if (!mounted) return;
-    setState(() => _loading = true);
+    if (_registrando || _finalizado || !mounted) return;
+    setState(() => _registrando = true);
 
     final sucesso = await ref
         .read(accountsProvider.notifier)
@@ -96,14 +73,41 @@ class _ConnectAccountScreenState extends ConsumerState<ConnectAccountScreen> {
 
     if (!mounted) return;
     if (sucesso) {
-      Navigator.pop(context, true);
+      _encerrar(true);
     } else {
-      final erro = ref.read(accountsProvider).errorMessage ??
-          'Não foi possível conectar a conta.';
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(erro)));
-      Navigator.pop(context, false);
+      _encerrar(
+        false,
+        ref.read(accountsProvider).errorMessage ??
+            'Não foi possível conectar a conta.',
+      );
     }
+  }
+
+  void _aoFalhar(dynamic error) {
+    final msg = error is Map ? error['message'] : null;
+    _encerrar(
+      false,
+      msg is String && msg.isNotEmpty
+          ? msg
+          : 'Não foi possível conectar a conta.',
+    );
+  }
+
+  /// Fecha a tela uma única vez, mesmo que o widget dispare vários eventos.
+  void _encerrar(bool sucesso, [String? mensagem]) {
+    if (_finalizado || !mounted) return;
+    _finalizado = true;
+    if (mensagem != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensagem)));
+    }
+    Navigator.pop(context, sucesso);
+  }
+
+  void _aoFechar() {
+    // CLOSE também é emitido após o sucesso; só trata como cancelamento
+    // se nada estiver em andamento.
+    if (_registrando) return;
+    _encerrar(false);
   }
 
   @override
@@ -113,7 +117,7 @@ class _ConnectAccountScreenState extends ConsumerState<ConnectAccountScreen> {
         title: const Text('Conectar conta bancária'),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: () => Navigator.pop(context, false),
+          onPressed: () => _encerrar(false),
         ),
       ),
       body: Stack(
@@ -131,10 +135,7 @@ class _ConnectAccountScreenState extends ConsumerState<ConnectAccountScreen> {
                     const SizedBox(height: 24),
                     FilledButton(
                       onPressed: () {
-                        setState(() {
-                          _errorMsg = null;
-                          _loading = true;
-                        });
+                        setState(() => _errorMsg = null);
                         _iniciar();
                       },
                       child: const Text('Tentar novamente'),
@@ -143,12 +144,22 @@ class _ConnectAccountScreenState extends ConsumerState<ConnectAccountScreen> {
                 ),
               ),
             )
-          else if (_controller != null)
-            WebViewWidget(controller: _controller!)
+          else if (_connectToken != null)
+            PluggyConnect(
+              connectToken: _connectToken!,
+              includeSandbox: _kIncludeSandbox,
+              connectorTypes: const ['PERSONAL_BANK', 'BUSINESS_BANK', 'INVESTMENT'],
+              onSuccess: _aoConcluir,
+              onError: _aoFalhar,
+              onClose: _aoFechar,
+            )
           else
             const Center(child: CircularProgressIndicator()),
-          if (_loading && _controller != null)
-            const Center(child: CircularProgressIndicator()),
+          if (_registrando)
+            const ColoredBox(
+              color: Color(0x88000000),
+              child: Center(child: CircularProgressIndicator()),
+            ),
         ],
       ),
     );
