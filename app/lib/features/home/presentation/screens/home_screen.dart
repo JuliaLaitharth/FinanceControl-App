@@ -3,9 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../accounts/presentation/providers/accounts_provider.dart';
+import '../../../accounts/presentation/screens/accounts_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
+
+  /// Abre as contas conectadas e, ao voltar, recarrega o saldo.
+  Future<void> _abrirContas(BuildContext context, WidgetRef ref) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AccountsScreen()),
+    );
+    ref.invalidate(saldoProvider);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,6 +26,11 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('FinanceControl'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.account_balance_outlined),
+            tooltip: 'Contas conectadas',
+            onPressed: () => _abrirContas(context, ref),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Atualizar',
@@ -109,8 +123,14 @@ class HomeScreen extends ConsumerWidget {
                           const Text('Nenhuma conta conectada'),
                           const SizedBox(height: 8),
                           Text(
-                            'Conecte seu banco na aba Contas',
+                            'Conecte seu banco para ver saldos e transações',
                             style: TextStyle(color: cs.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: () => _abrirContas(context, ref),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Conectar conta'),
                           ),
                         ],
                       ),
