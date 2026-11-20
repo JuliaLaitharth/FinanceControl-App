@@ -33,7 +33,7 @@ const consentimentoFake = (overrides = {}) => ({
 const txPluggyFake = (overrides = {}) => ({
   id: 'tx-ext-1',
   description: 'SUPERMERCADO EXTRA',
-  amount: 150.5,
+  amount: -150.5, // no Pluggy, saídas vêm com valor negativo
   type: 'DEBIT',
   date: '2026-11-01',
   ...overrides,
@@ -150,6 +150,25 @@ describe('TransacaoService', () => {
   // ─── sincronizar ─────────────────────────────────────────────────────────
 
   describe('sincronizar()', () => {
+    it.each([
+      // [descrição, type do Pluggy, amount do Pluggy, tipo gravado, valor gravado]
+      ['débito em conta', 'DEBIT', -100, 'DEBIT', 100],
+      ['salário em conta', 'CREDIT', 8500, 'CREDIT', 8500],
+      ['compra no cartão (type vem CREDIT, valor negativo)', 'CREDIT', -89.9, 'DEBIT', 89.9],
+    ])('classifica %s pelo sinal do valor', async (_d, type, amount, tipo, valor) => {
+      prisma.categoria.findMany.mockResolvedValue(categoriasFake as never);
+      prisma.consentimento.findMany.mockResolvedValue([consentimentoFake()] as never);
+      pluggy.buscarTransacoes.mockResolvedValue([txPluggyFake({ type, amount })] as never);
+      prisma.transacao.upsert.mockResolvedValue(txBdFake() as never);
+      prisma.contaBancaria.update.mockResolvedValue(contaFake() as never);
+
+      await service.sincronizar(42);
+
+      expect(prisma.transacao.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ create: expect.objectContaining({ tipo, valor }) }),
+      );
+    });
+
     it('busca transações do Pluggy, faz upsert e registra auditoria', async () => {
       prisma.categoria.findMany.mockResolvedValue(categoriasFake as never);
       prisma.consentimento.findMany.mockResolvedValue([consentimentoFake()] as never);

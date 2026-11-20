@@ -1,14 +1,17 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Queue } from 'bullmq';
 import { createHash } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { PluggyAdapter } from '../pluggy/pluggy.adapter';
 import { PrismaService } from '../prisma/prisma.service';
+import { PLUGGY_SYNC_QUEUE } from '../worker/worker.processor.js';
 import { CreateConsentimentoDto } from './dto/create-consentimento.dto';
 
 @Injectable()
@@ -20,6 +23,7 @@ export class ConsentimentoService {
     private readonly pluggy: PluggyAdapter,
     private readonly encryption: EncryptionService,
     private readonly audit: AuditService,
+    @InjectQueue(PLUGGY_SYNC_QUEUE) private readonly syncQueue: Queue,
   ) {}
 
   /** Gera connect token para abrir o Pluggy Connect Widget. */
@@ -84,6 +88,23 @@ export class ConsentimentoService {
       })),
       skipDuplicates: true,
     });
+
+    // Primeira carga de transações. Não depende do webhook do Pluggy chegar; se a
+    // fila falhar, a conexão já está salva e o webhook/sincronização manual cobre.
+    try {
+      await this.syncQueue.add(
+        'sync',
+        { usuarioId, event: 'consentimento/criado' },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5_000 },
+          removeOnComplete: 100,
+          removeOnFail: 50,
+        },
+      );
+    } catch (err) {
+      this.logger.warn(`Não foi possível enfileirar a sincronização inicial: ${String(err)}`);
+    }
 
     await this.audit.registrar(usuarioId, 'CONSENTIMENTO_CRIADO', 'consentimento', ip);
     this.logger.log(`Consentimento criado: usuário ${usuarioId}, instituição ${nomeInstituicao}`);

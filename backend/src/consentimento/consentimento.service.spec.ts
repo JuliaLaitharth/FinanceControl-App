@@ -40,6 +40,7 @@ describe('ConsentimentoService', () => {
   let pluggy: jest.Mocked<PluggyAdapter>;
   let encryption: jest.Mocked<EncryptionService>;
   let audit: jest.Mocked<AuditService>;
+  let syncQueue: { add: jest.Mock };
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -60,7 +61,9 @@ describe('ConsentimentoService', () => {
       registrar: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<AuditService>;
 
-    service = new ConsentimentoService(prisma as never, pluggy, encryption, audit);
+    syncQueue = { add: jest.fn(async () => undefined) };
+
+    service = new ConsentimentoService(prisma as never, pluggy, encryption, audit, syncQueue as never);
   });
 
   // ─── gerarConnectToken ───────────────────────────────────────────────────
@@ -114,6 +117,37 @@ describe('ConsentimentoService', () => {
         '127.0.0.1',
       );
       expect(result).toBeTruthy();
+    });
+
+    it('enfileira a sincronização inicial e não falha se a fila estiver fora', async () => {
+      prisma.consentimento.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(consentimentoFake() as never);
+      pluggy.buscarItem.mockResolvedValue(itemPluggyFake as never);
+      pluggy.buscarContas.mockResolvedValue(contasPluggyFake as never);
+      prisma.instituicao.upsert.mockResolvedValue({
+        id: 1,
+        nome: 'Banco Sandbox',
+        codigoPluggy: '123',
+        logoUrl: null,
+      });
+      prisma.consentimento.create.mockResolvedValue(consentimentoFake() as never);
+      prisma.contaBancaria.createMany.mockResolvedValue({ count: 2 });
+
+      await service.criar({ itemId: 'item-uuid' }, 42);
+      expect(syncQueue.add).toHaveBeenCalledWith(
+        'sync',
+        { usuarioId: 42, event: 'consentimento/criado' },
+        expect.objectContaining({ attempts: 3 }),
+      );
+
+      syncQueue.add.mockImplementation(async () => {
+        throw new Error('redis fora');
+      });
+      prisma.consentimento.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(consentimentoFake() as never);
+      await expect(service.criar({ itemId: 'item-2' }, 42)).resolves.toBeTruthy();
     });
 
     it('lança ConflictException "Conta já conectada" para itemId duplicado', async () => {

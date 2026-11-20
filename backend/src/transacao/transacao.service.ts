@@ -155,9 +155,11 @@ export class TransacaoService {
                 contaId: conta.id,
                 idExternoPluggy: tx.id,
                 descricao: tx.description ?? 'Sem descrição',
-                // O sinal de amount varia por tipo de conta no Pluggy; a direção já vem em `tipo`.
+                // No Pluggy, o sinal de amount é a direção real do dinheiro (negativo = saída).
+                // O campo `type` não serve: compras no cartão chegam como CREDIT com valor
+                // negativo e seriam contadas como receita. Guardamos o valor em módulo.
                 valor: Math.abs(tx.amount),
-                tipo: tx.type,
+                tipo: tx.amount < 0 ? 'DEBIT' : tx.amount > 0 ? 'CREDIT' : tx.type,
                 data: new Date(tx.date),
                 metodoPagamento: (tx as Record<string, unknown>)['paymentData']
                   ? String(((tx as Record<string, unknown>)['paymentData'] as Record<string, unknown>)?.['paymentMethod'] ?? '')

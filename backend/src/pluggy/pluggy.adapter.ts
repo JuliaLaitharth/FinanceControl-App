@@ -46,15 +46,19 @@ export class PluggyAdapter {
     }
   }
 
-  /** Busca transações de uma conta Pluggy num intervalo de datas. */
+  /**
+   * Busca transações de uma conta Pluggy num intervalo de datas.
+   *
+   * Usa GET /v2/transactions (paginação por cursor): o endpoint antigo
+   * GET /transactions foi descontinuado e responde 410 ENDPOINT_DEPRECATED.
+   * fetchAllTransactions percorre todas as páginas.
+   */
   async buscarTransacoes(accountId: string, de: Date, ate: Date) {
     try {
-      const { results } = await this.client.fetchTransactions(accountId, {
-        from: de.toISOString().split('T')[0],
-        to: ate.toISOString().split('T')[0],
-        pageSize: 500,
+      return await this.client.fetchAllTransactions(accountId, {
+        dateFrom: de.toISOString().split('T')[0],
+        dateTo: ate.toISOString().split('T')[0],
       });
-      return results;
     } catch (err) {
       this.logger.error(`Erro ao buscar transações da conta ${accountId}`, err);
       throw new ServiceUnavailableException('Não foi possível buscar as transações.');
