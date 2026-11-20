@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../accounts/presentation/providers/accounts_provider.dart';
 import '../../../auth/presentation/screens/profile_screen.dart';
+import '../../../dashboard/presentation/providers/dashboard_provider.dart';
 import '../../../dashboard/presentation/screens/dashboard_screen.dart';
 import '../../../home/presentation/screens/home_screen.dart';
 import '../../../notifications/presentation/providers/notificacoes_provider.dart';
 import '../../../notifications/presentation/screens/notificacoes_screen.dart';
+import '../../../transactions/presentation/providers/transacoes_provider.dart';
 import '../../../transactions/presentation/screens/transacoes_screen.dart';
 
 class MainShell extends ConsumerStatefulWidget {
@@ -34,6 +37,25 @@ class _MainShellState extends ConsumerState<MainShell> {
     );
   }
 
+  /// O IndexedStack monta as abas uma única vez, na abertura; sem isto, dados
+  /// sincronizados depois (transações, alertas) só apareciam ao atualizar na mão.
+  /// Ao entrar numa aba, recarrega os dados dela.
+  void _aoSelecionar(int i) {
+    setState(() => _index = i);
+    switch (i) {
+      case 0:
+        ref.invalidate(saldoProvider);
+      case 1:
+        ref.read(transacoesProvider.notifier).carregar();
+      case 2:
+        ref.invalidate(categoriasDashboardProvider);
+        ref.invalidate(resumoMensalProvider);
+      case 3:
+        ref.read(notificacoesProvider.notifier).carregar();
+        ref.read(notificacoesProvider.notifier).carregarContagem();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final naoLidas = ref.watch(
@@ -44,7 +66,7 @@ class _MainShellState extends ConsumerState<MainShell> {
       body: IndexedStack(index: _index, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: _aoSelecionar,
         destinations: [
           const NavigationDestination(
             icon: Icon(Icons.home_outlined),
