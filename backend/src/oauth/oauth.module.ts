@@ -9,7 +9,8 @@ import { OauthService } from './oauth.service.js';
   imports: [
     JwtModule.registerAsync({
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET', 'dev-secret'),
+        // Sem valor padrão: um segredo público assinaria os tokens da Alexa.
+        secret: config.getOrThrow<string>('JWT_SECRET'),
       }),
       inject: [ConfigService],
     }),

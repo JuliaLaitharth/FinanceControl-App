@@ -21,16 +21,14 @@ import { RegraAlertaModule } from './regra-alerta/regra-alerta.module';
 import { TransacaoModule } from './transacao/transacao.module';
 import { WebhookModule } from './webhook/webhook.module';
 import { WorkerModule } from './worker/worker.module';
+import { redisConnection } from './redis/redis.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     BullModule.forRootAsync({
       useFactory: (config: ConfigService) => ({
-        connection: {
-          host: config.get('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-        },
+        connection: redisConnection((k) => config.get<string>(k)),
       }),
       inject: [ConfigService],
     }),
