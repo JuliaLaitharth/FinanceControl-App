@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../periodo_relatorio.dart';
 import '../providers/dashboard_provider.dart';
 
 const _coresCategorias = [
@@ -27,6 +28,7 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final categoriasAsync = ref.watch(categoriasDashboardProvider);
+    final periodo = ref.watch(periodoRelatorioProvider);
     final mensalAsync = ref.watch(resumoMensalProvider);
     final brl = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
     final cs = Theme.of(context).colorScheme;
@@ -57,9 +59,18 @@ class DashboardScreen extends ConsumerWidget {
             // --- Gráfico de pizza: despesas por categoria ---
             Text('Despesas por Categoria', style: tt.titleMedium),
             const SizedBox(height: 4),
-            Text(
-              'Mês atual',
-              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final p in PeriodoRelatorio.values)
+                  ChoiceChip(
+                    label: Text(p.rotulo),
+                    selected: periodo == p,
+                    onSelected: (_) =>
+                        ref.read(periodoRelatorioProvider.notifier).state = p,
+                  ),
+              ],
             ),
             const SizedBox(height: 12),
             categoriasAsync.when(
@@ -72,11 +83,19 @@ class DashboardScreen extends ConsumerWidget {
                 child: Center(child: Text('Sem dados')),
               ),
               data: (cats) => cats.isEmpty
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 240,
-                      child: Center(child: Text('Nenhuma despesa no mês')),
+                      child: Center(
+                        child: Text('Nenhuma despesa no ${periodo.descricao}'),
+                      ),
                     )
-                  : _PieSection(cats: cats, brl: brl),
+                  : Column(
+                      children: [
+                        _PieSection(cats: cats, brl: brl),
+                        const SizedBox(height: 20),
+                        _ListaCategorias(cats: cats, brl: brl),
+                      ],
+                    ),
             ),
 
             const SizedBox(height: 28),
@@ -289,6 +308,125 @@ class _BarSection extends StatelessWidget {
           gridData: const FlGridData(show: true, drawVerticalLine: false),
           borderData: FlBorderData(show: false),
         ),
+      ),
+    );
+  }
+}
+
+/// Detalhe do gráfico de pizza: uma linha por categoria com valor, % do total,
+/// quantidade de lançamentos e uma barra proporcional.
+class _ListaCategorias extends StatelessWidget {
+  const _ListaCategorias({required this.cats, required this.brl});
+
+  final List<Map<String, dynamic>> cats;
+  final NumberFormat brl;
+
+  /// Mesma cor do gráfico para as 7 primeiras; as demais (agrupadas em
+  /// "Outros" na pizza) ficam em cinza.
+  Color _cor(int i) => i < 7 ? _coresCategorias[i] : Colors.grey;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final total = cats.fold<double>(0, (s, c) => s + (c['total'] as num).toDouble());
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Por categoria', style: tt.titleSmall),
+            Text(
+              'Total ${brl.format(total)}',
+              style: tt.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (var i = 0; i < cats.length; i++)
+          _LinhaCategoria(
+            cor: _cor(i),
+            nome: '${cats[i]['icone'] ?? ''} ${cats[i]['nome']}'.trim(),
+            valor: (cats[i]['total'] as num).toDouble(),
+            total: total,
+            quantidade: (cats[i]['quantidade'] as num?)?.toInt() ?? 0,
+            brl: brl,
+            cs: cs,
+          ),
+      ],
+    );
+  }
+}
+
+class _LinhaCategoria extends StatelessWidget {
+  const _LinhaCategoria({
+    required this.cor,
+    required this.nome,
+    required this.valor,
+    required this.total,
+    required this.quantidade,
+    required this.brl,
+    required this.cs,
+  });
+
+  final Color cor;
+  final String nome;
+  final double valor;
+  final double total;
+  final int quantidade;
+  final NumberFormat brl;
+  final ColorScheme cs;
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = total > 0 ? valor / total : 0.0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(color: cor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(nome, overflow: TextOverflow.ellipsis)),
+              Text(
+                brl.format(valor),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: pct,
+                    minHeight: 6,
+                    color: cor,
+                    backgroundColor: cs.surfaceContainerHighest,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 112,
+                child: Text(
+                  '${(pct * 100).toStringAsFixed(1)}% · $quantidade ${quantidade == 1 ? 'lançamento' : 'lançamentos'}',
+                  textAlign: TextAlign.end,
+                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
