@@ -2,17 +2,22 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
+# O Prisma precisa do OpenSSL no Alpine para detectar a versão da libssl.
+RUN apk add --no-cache openssl
+
 COPY package*.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+# Gera o cliente já com o esquema presente (o postinstall do npm ci roda sem ele).
+RUN npx prisma generate && npm run build
 
 # ── Etapa 2: produção ─────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+RUN apk add --no-cache openssl
 
 COPY package*.json ./
 RUN npm ci --omit=dev

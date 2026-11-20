@@ -4,7 +4,7 @@ services:
     runtime: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
-    plan: free
+    plan: starter # o plano free hiberna após 15 min e derrubaria webhooks e a Alexa
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -15,16 +15,11 @@ services:
         fromDatabase:
           name: financecontrol-db
           property: connectionString
-      - key: REDIS_HOST
+      - key: REDIS_URL
         fromService:
           name: financecontrol-redis
           type: redis
-          property: host
-      - key: REDIS_PORT
-        fromService:
-          name: financecontrol-redis
-          type: redis
-          property: port
+          property: connectionString
       # Segredos: defina no painel do Render → Environment
       - key: JWT_SECRET
         sync: false
@@ -38,6 +33,14 @@ services:
         sync: false
       - key: FCM_SERVER_KEY
         sync: false
+      - key: ALEXA_OAUTH_CLIENT_ID
+        sync: false
+      - key: ALEXA_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: ALEXA_REDIRECT_URIS
+        sync: false
+      - key: ALEXA_SKILL_STAGE
+        value: development
       - key: ALEXA_CLIENT_ID
         sync: false
       - key: ALEXA_CLIENT_SECRET
