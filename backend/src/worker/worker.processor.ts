@@ -36,20 +36,17 @@ export class SyncWorkerProcessor extends WorkerHost {
     this.logger.log(`Processando job ${job.id} — evento: ${event}, usuário: ${usuarioId}`);
 
     // 1. Sincroniza transações via Pluggy
-    const { sincronizadas } = await this.transacaoService.sincronizar(usuarioId);
-    this.logger.log(`Sincronizadas ${sincronizadas} transações`);
+    const { sincronizadas, novasIds } = await this.transacaoService.sincronizar(usuarioId);
+    this.logger.log(`Sincronizadas ${sincronizadas} transações (${novasIds.length} novas)`);
 
-    if (sincronizadas === 0) return;
-
-    // 2. Busca transações sincronizadas recentemente (últimos 2 min)
-    const corte = new Date(Date.now() - 2 * 60 * 1000);
-    const txsRecentes = await this.prisma.transacao.findMany({
-      where: {
-        conta: { consentimento: { usuarioId, status: 'ATIVO' } },
-        data: { gte: corte },
-      },
-      include: { conta: true },
-    });
+    // 2. Avalia apenas as transações NOVAS desta sincronização (a data da transação vem do banco
+    //    e normalmente é anterior ao momento do sync, então não serve como filtro de recência).
+    const txsRecentes = novasIds.length
+      ? await this.prisma.transacao.findMany({
+          where: { id: { in: novasIds }, conta: { consentimento: { usuarioId, status: 'ATIVO' } } },
+          include: { conta: true },
+        })
+      : [];
 
     // 3. Busca contas para verificar saldo mínimo
     const contas = await this.prisma.contaBancaria.findMany({

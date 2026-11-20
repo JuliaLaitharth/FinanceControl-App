@@ -90,7 +90,10 @@ export class TransacaoService {
    * Sincroniza transações dos últimos 90 dias via Pluggy.
    * Aplica auto-categorização para transações novas.
    */
-  async sincronizar(usuarioId: number, ip?: string): Promise<{ sincronizadas: number }> {
+  async sincronizar(
+    usuarioId: number,
+    ip?: string,
+  ): Promise<{ sincronizadas: number; novasIds: number[] }> {
     const [categorias, regrasUsuario] = await Promise.all([
       this.prisma.categoria.findMany({
         where: { padraoSistema: true },
@@ -110,8 +113,23 @@ export class TransacaoService {
     const noventa = new Date(Date.now() - 90 * 86_400_000);
     const hoje = new Date();
     let sincronizadas = 0;
+    const novasIds: number[] = [];
 
     for (const c of consentimentos) {
+      // Atualiza saldo das contas (RF03) — melhor esforço, não impede a sincronização de transações.
+      try {
+        const itemId = this.encryption.decrypt(c.itemIdPluggy);
+        const contasPluggy = (await this.pluggy.buscarContas(itemId)) ?? [];
+        for (const cp of contasPluggy) {
+          await this.prisma.contaBancaria.updateMany({
+            where: { idExternoPluggy: cp.id, consentimentoId: c.id },
+            data: { saldoAtual: cp.balance, ultimaSincronizacao: new Date() },
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`Erro ao atualizar saldos do consentimento ${c.id}: ${String(err)}`);
+      }
+
       for (const conta of c.contas) {
         try {
           const txs = await this.pluggy.buscarTransacoes(
@@ -120,9 +138,18 @@ export class TransacaoService {
             hoje,
           );
 
+          const existentes = new Set(
+            (
+              (await this.prisma.transacao.findMany({
+                where: { idExternoPluggy: { in: txs.map((t: { id: string }) => t.id) } },
+                select: { idExternoPluggy: true },
+              })) ?? []
+            ).map((e: { idExternoPluggy: string }) => e.idExternoPluggy),
+          );
+
           for (const tx of txs) {
             const categoriaId = this.categorizarAuto(tx.description ?? '', categorias, regrasUsuario);
-            await this.prisma.transacao.upsert({
+            const registro = await this.prisma.transacao.upsert({
               where: { idExternoPluggy: tx.id },
               create: {
                 contaId: conta.id,
@@ -138,6 +165,7 @@ export class TransacaoService {
               },
               update: {},
             });
+            if (!existentes.has(tx.id) && registro?.id !== undefined) novasIds.push(registro.id);
             sincronizadas++;
           }
 
@@ -153,7 +181,7 @@ export class TransacaoService {
 
     await this.audit.registrar(usuarioId, 'SINCRONIZACAO_REALIZADA', 'transacao', ip);
     this.logger.log(`Sincronizadas ${sincronizadas} transações para usuário ${usuarioId}`);
-    return { sincronizadas };
+    return { sincronizadas, novasIds };
   }
 
   /** Resumo mensal de receitas e despesas para o dashboard (RF09). */

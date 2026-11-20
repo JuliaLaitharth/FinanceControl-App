@@ -185,6 +185,50 @@ describe('TransacaoService', () => {
       expect(result.sincronizadas).toBe(1);
     });
 
+    it('atualiza o saldo das contas a partir do Pluggy (RF03)', async () => {
+      const comCripto = new TransacaoService(
+        prisma as never,
+        pluggy,
+        { decrypt: jest.fn().mockReturnValue('item-1') } as unknown as EncryptionService,
+        audit,
+      );
+      prisma.categoria.findMany.mockResolvedValue(categoriasFake as never);
+      prisma.consentimento.findMany.mockResolvedValue([consentimentoFake()] as never);
+      pluggy.buscarContas.mockResolvedValue([{ id: 'acc-ext-1', balance: 777.7 }] as never);
+      pluggy.buscarTransacoes.mockResolvedValue([] as never);
+      prisma.contaBancaria.update.mockResolvedValue(contaFake() as never);
+
+      await comCripto.sincronizar(42);
+
+      expect(pluggy.buscarContas).toHaveBeenCalledWith('item-1');
+      expect(prisma.contaBancaria.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { idExternoPluggy: 'acc-ext-1', consentimentoId: 10 },
+          data: expect.objectContaining({ saldoAtual: 777.7 }),
+        }),
+      );
+    });
+
+    it('retorna em novasIds apenas as transações que ainda não existiam', async () => {
+      prisma.categoria.findMany.mockResolvedValue(categoriasFake as never);
+      prisma.consentimento.findMany.mockResolvedValue([consentimentoFake()] as never);
+      pluggy.buscarTransacoes.mockResolvedValue([
+        txPluggyFake({ id: 'tx-velha' }),
+        txPluggyFake({ id: 'tx-nova' }),
+      ] as never);
+      // só 'tx-velha' já existe no banco
+      prisma.transacao.findMany.mockResolvedValue([{ idExternoPluggy: 'tx-velha' }] as never);
+      prisma.transacao.upsert
+        .mockResolvedValueOnce(txBdFake({ id: 5 }) as never)
+        .mockResolvedValueOnce(txBdFake({ id: 6 }) as never);
+      prisma.contaBancaria.update.mockResolvedValue(contaFake() as never);
+
+      const result = await service.sincronizar(42);
+
+      expect(result.sincronizadas).toBe(2);
+      expect(result.novasIds).toEqual([6]);
+    });
+
     it('auto-categoriza "SUPERMERCADO" como Alimentação', async () => {
       prisma.categoria.findMany.mockResolvedValue(categoriasFake as never);
       prisma.consentimento.findMany.mockResolvedValue([consentimentoFake()] as never);

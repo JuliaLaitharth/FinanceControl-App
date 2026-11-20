@@ -36,12 +36,11 @@ export class ConsentimentoService {
   async criar(dto: CreateConsentimentoDto, usuarioId: number, ip?: string) {
     const itemIdDecriptado = dto.itemId;
 
-    // Verifica duplicidade: o mesmo itemId já foi conectado por este usuário?
-    const itemIdCriptografado = this.encryption.encrypt(itemIdDecriptado);
-    const duplicado = await this.prisma.consentimento.findFirst({
-      where: { usuarioId, itemIdPluggy: itemIdCriptografado },
-    });
+    // Duplicidade: o AES-GCM usa IV aleatório (ciphertext nunca repete), então compara-se o hash SHA-256.
+    const itemIdHash = createHash('sha256').update(itemIdDecriptado).digest('hex');
+    const duplicado = await this.prisma.consentimento.findFirst({ where: { itemIdHash } });
     if (duplicado) throw new ConflictException('Conta já conectada');
+    const itemIdCriptografado = this.encryption.encrypt(itemIdDecriptado);
 
     // Busca detalhes do item para obter a instituição
     const item = await this.pluggy.buscarItem(itemIdDecriptado);
@@ -58,9 +57,6 @@ export class ConsentimentoService {
         logoUrl: item.connector.imageUrl ?? null,
       },
     });
-
-    // SHA-256 do itemId para lookup rápido no webhook (não reversível)
-    const itemIdHash = createHash('sha256').update(itemIdDecriptado).digest('hex');
 
     // Cria o consentimento
     const consentimento = await this.prisma.consentimento.create({
