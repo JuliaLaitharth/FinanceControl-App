@@ -53,6 +53,15 @@ class ProfileScreen extends ConsumerWidget {
             onTap: () => _editarNome(context, ref, nome),
           ),
 
+          // Alterar e-mail
+          ListTile(
+            leading: const Icon(Icons.alternate_email),
+            title: const Text('Alterar e-mail'),
+            subtitle: Text(email),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _alterarEmail(context, ref),
+          ),
+
           // Alterar senha
           ListTile(
             leading: const Icon(Icons.lock_outline),
@@ -110,6 +119,62 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _alterarEmail(BuildContext context, WidgetRef ref) async {
+    final emailCtrl = TextEditingController();
+    final senhaCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Alterar e-mail'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Novo e-mail'),
+                autofocus: true,
+                validator: (v) {
+                  final t = v?.trim() ?? '';
+                  return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(t) ? null : 'E-mail inválido';
+                },
+              ),
+              TextFormField(
+                controller: senhaCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Senha atual'),
+                validator: (v) => (v == null || v.isEmpty) ? 'Informe a senha' : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() == true) Navigator.pop(ctx, true);
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    final sucesso = await ref.read(authProvider.notifier).alterarEmail(
+          senhaAtual: senhaCtrl.text,
+          novoEmail: emailCtrl.text.trim().toLowerCase(),
+        );
+    if (!context.mounted) return;
+    final erro = ref.read(authProvider).errorMessage;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(sucesso ? 'E-mail atualizado' : (erro ?? 'Não foi possível alterar o e-mail'))),
     );
   }
 

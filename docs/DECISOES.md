@@ -27,7 +27,7 @@
 
 **Decisão original:** alterar nome, **e-mail** (com reconfirmação de senha), senha, biometria e excluir conta (LGPD). Sem foto de perfil nem preferências de idioma/tema.
 
-**Situação atual:** implementados nome, senha, biometria e exclusão de conta. **A alteração de e-mail não foi implementada** (não há rota nem tela).
+**Situação atual:** implementados nome, e-mail (com reconfirmação de senha, `PATCH /auth/email`), senha, biometria e exclusão de conta.
 
 ---
 

@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Ip, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { LgpdService } from '../lgpd/lgpd.service';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthService } from './auth.service';
 import { BiometriaDto } from './dto/biometria.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -34,6 +35,15 @@ class AlterarSenhaDto {
   @IsString()
   @MinLength(8)
   novaSenha!: string;
+}
+
+class AlterarEmailDto {
+  @IsString()
+  senhaAtual!: string;
+
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  @IsEmail({}, { message: 'E-mail inválido' })
+  novoEmail!: string;
 }
 
 interface AuthRequest {
@@ -113,6 +123,13 @@ export class AuthController {
   @Patch('perfil')
   atualizarPerfil(@Req() req: AuthRequest, @Body() dto: AtualizarPerfilDto) {
     return this.auth.atualizarPerfil(req.user.userId, dto.nome);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('email')
+  @HttpCode(200)
+  alterarEmail(@Req() req: AuthRequest, @Body() dto: AlterarEmailDto, @Ip() ip: string) {
+    return this.auth.alterarEmail(req.user.userId, dto.senhaAtual, dto.novoEmail, ip);
   }
 
   @UseGuards(JwtAuthGuard)

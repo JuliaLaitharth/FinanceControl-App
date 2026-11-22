@@ -94,6 +94,17 @@ class AuthRepository {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> alterarEmail({
+    required String senhaAtual,
+    required String novoEmail,
+  }) async {
+    final res = await _client.dio.patch('/auth/email', data: {
+      'senhaAtual': senhaAtual,
+      'novoEmail': novoEmail,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<void> alterarSenha({
     required String senhaAtual,
     required String novaSenha,

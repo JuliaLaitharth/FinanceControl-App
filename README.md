@@ -55,7 +55,7 @@ Legenda: ✅ funcionando e verificado · ⚠️ parcial ou pendente.
 | RF08 | Alexa: vínculo de conta (OAuth 2.0), saldo e gastos por voz | ✅ — alertas por voz ⚠️ configuração em andamento (ver [integrações](docs/INTEGRACOES.md#alertas-proativos-por-voz)) |
 | RF09 | Relatórios: despesas por categoria (por período) e receitas × despesas por mês | ✅ |
 | RF10 | LGPD: revogação de consentimento e exclusão total da conta | ✅ |
-| RF11 | Perfil: editar nome, alterar senha, biometria, excluir conta | ✅ — alterar **e-mail** ⚠️ não implementado |
+| RF11 | Perfil: editar nome, alterar e-mail, alterar senha, biometria, excluir conta | ✅ |
 
 ---
 
@@ -219,6 +219,7 @@ Todas as rotas `JWT` exigem `Authorization: Bearer <accessToken>`. Um token emit
 | GET | `/auth/me` | JWT | Dados do usuário |
 | PATCH | `/auth/biometria` | JWT | Ativar/desativar biometria |
 | PATCH | `/auth/perfil` | JWT | Atualizar nome |
+| PATCH | `/auth/email` | JWT | Alterar e-mail (reconfirma a senha) |
 | PATCH | `/auth/senha` | JWT | Alterar senha |
 | PATCH | `/auth/fcm-token` | JWT | Registrar token FCM do aparelho |
 | PATCH | `/auth/alexa-id` | JWT | Registrar o ID da Alexa (feito pela skill) |

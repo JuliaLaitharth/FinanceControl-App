@@ -351,6 +351,33 @@ describe('AuthService', () => {
     });
   });
 
+  describe('alterarEmail()', () => {
+    it('altera o e-mail com a senha correta e audita', async () => {
+      prisma.usuario.findUniqueOrThrow.mockResolvedValue(usuarioBase());
+      prisma.usuario.findUnique.mockResolvedValue(null);
+      prisma.usuario.update.mockResolvedValue(usuarioBase({ email: 'novo@example.com' }));
+
+      const r = await service.alterarEmail(1, 'Senha123', 'novo@example.com', '127.0.0.1');
+
+      expect(r.email).toBe('novo@example.com');
+      expect(prisma.usuario.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { email: 'novo@example.com' } });
+      expect(auditService.registrar).toHaveBeenCalledWith(1, 'EMAIL_ALTERADO', 'usuario', '127.0.0.1');
+    });
+
+    it('rejeita senha incorreta', async () => {
+      prisma.usuario.findUniqueOrThrow.mockResolvedValue(usuarioBase());
+      await expect(service.alterarEmail(1, 'errada123', 'novo@example.com')).rejects.toThrow(UnauthorizedException);
+      expect(prisma.usuario.update).not.toHaveBeenCalled();
+    });
+
+    it('rejeita e-mail já cadastrado', async () => {
+      prisma.usuario.findUniqueOrThrow.mockResolvedValue(usuarioBase());
+      prisma.usuario.findUnique.mockResolvedValue(usuarioBase({ id: 2 }));
+      await expect(service.alterarEmail(1, 'Senha123', 'outro@example.com')).rejects.toThrow(ConflictException);
+      expect(prisma.usuario.update).not.toHaveBeenCalled();
+    });
+  });
+
   // ─── ISOLAMENTO ──────────────────────────────────────────────────────────────
 
   describe('isolamento de dados entre usuários', () => {

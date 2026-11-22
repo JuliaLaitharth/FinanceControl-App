@@ -233,6 +233,27 @@ export class AuthService {
     return this.publico(usuario);
   }
 
+  /** Altera o e-mail após reconfirmar a senha (DVP RF11). */
+  async alterarEmail(usuarioId: number, senhaAtual: string, novoEmail: string, ip?: string) {
+    const usuario = await this.prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId } });
+    const ok = await bcrypt.compare(senhaAtual, usuario.senhaHash);
+    if (!ok) throw new UnauthorizedException('Senha atual incorreta');
+    if (novoEmail === usuario.email) return this.publico(usuario);
+
+    const existente = await this.prisma.usuario.findUnique({ where: { email: novoEmail } });
+    if (existente) throw new ConflictException('E-mail já cadastrado');
+
+    let atualizado;
+    try {
+      atualizado = await this.prisma.usuario.update({ where: { id: usuarioId }, data: { email: novoEmail } });
+    } catch (e) {
+      if ((e as { code?: string }).code === 'P2002') throw new ConflictException('E-mail já cadastrado');
+      throw e;
+    }
+    await this.audit.registrar(usuarioId, 'EMAIL_ALTERADO', 'usuario', ip);
+    return this.publico(atualizado);
+  }
+
   async alterarSenha(usuarioId: number, senhaAtual: string, novaSenha: string, ip?: string) {
     const usuario = await this.prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId } });
     const ok = await bcrypt.compare(senhaAtual, usuario.senhaHash);
