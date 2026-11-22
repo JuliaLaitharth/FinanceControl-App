@@ -26,8 +26,9 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
+COPY scripts/start.sh ./scripts/start.sh
 
 EXPOSE 3000
 
-# Roda as migrations e então inicia o servidor
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+# Aguarda o banco, roda as migrations e então inicia o servidor
+CMD ["sh", "scripts/start.sh"]
