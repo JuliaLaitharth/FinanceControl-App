@@ -1,129 +1,165 @@
 # Checklist de Conformidade — LGPD e Segurança
 
 > DVP v3.0 — FinanceControl — Universidade de Passo Fundo
-> Atualizado: 2026-11-03
+> Atualizado: 2026-11-22
+
+Legenda: ✅ implementado e verificado no código · ⚠️ parcial ou pendência · ❌ não implementado.
+
+Este documento descreve **o que o código faz hoje**. Itens ⚠️ e ❌ estão reunidos em [Pendências](#7-pendências-de-conformidade).
 
 ---
 
 ## 1. LGPD — Lei Geral de Proteção de Dados (Lei nº 13.709/2018)
 
-### 1.1 Base Legal e Finalidade
+### 1.1 Base legal e finalidade
 
 | Item | Status | Evidência |
 |---|---|---|
-| Coleta limitada à finalidade do serviço (Art. 6º, I) | ✅ | Coletados apenas: nome, e-mail, dados bancários via Pluggy |
-| Finalidade informada ao usuário antes da coleta | ✅ | Tela de cadastro e fluxo de consentimento (ConsentimentoScreen) |
-| Consentimento explícito antes de integrar conta bancária | ✅ | `POST /consentimentos` — usuário inicia o Connect Widget voluntariamente |
-| Dados de menores (< 18 anos) não coletados | ✅ | Sem campo de data de nascimento; fora do escopo do DVP |
+| Coleta limitada à finalidade do serviço (Art. 6º, I) | ✅ | Coletados: nome, e-mail, senha (hash) e dados bancários lidos via Pluggy |
+| Consentimento explícito antes de integrar conta bancária | ✅ | A conexão só ocorre quando o usuário abre o Pluggy Connect (`POST /consentimentos` recebe o `itemId` que o widget devolve) |
+| Finalidade informada ao usuário | ⚠️ | A tela **Conectar conta** é o ponto de consentimento, mas não há texto de finalidade/política de privacidade no app |
+| Dados de menores não coletados | ✅ | Sem campo de data de nascimento |
 
-### 1.2 Direitos do Titular
+### 1.2 Direitos do titular
 
 | Direito | Endpoint | Implementação |
 |---|---|---|
-| Acesso aos dados (Art. 18, II) | `GET /auth/me` | Retorna nome, e-mail, biometriaAtiva |
-| Portabilidade (Art. 18, V) | — | Fora do escopo do DVP v3.0 |
-| Revogação de consentimento (Art. 8º, §5º) | `DELETE /consentimentos/:id` | Revoga via Pluggy + status REVOGADO no banco |
-| Exclusão completa (Art. 18, VI) | `DELETE /auth/conta` | `LgpdService.excluirConta`: revoga todos os items Pluggy, registra auditoria, cascade delete |
+| Acesso (Art. 18, II) | `GET /auth/me` | Retorna os dados cadastrais (nome, e-mail, biometria) |
+| Revogação do consentimento (Art. 8º, §5º) | `DELETE /consentimentos/:id` | Revoga o item no Pluggy e marca o consentimento como revogado |
+| Exclusão (Art. 18, VI) | `DELETE /auth/conta` | `LgpdService.excluirConta` revoga os itens no Pluggy (falha na revogação externa só gera aviso e a exclusão local prossegue), registra a auditoria e apaga os dados em cascata |
+| Portabilidade (Art. 18, V) | — | ❌ Fora do escopo do DVP v3.0 |
 
-### 1.3 Medidas Técnicas
+### 1.3 Medidas técnicas
 
 | Medida | Status | Detalhe |
 |---|---|---|
-| Criptografia em repouso | ✅ | `itemIdPluggy` criptografado com AES-256-GCM via `EncryptionService` |
-| Criptografia em trânsito | ✅ | HTTPS obrigatório em produção (Railway/Render fornecem TLS automaticamente) |
-| Hash de senhas | ✅ | bcrypt com 12 rounds (`BCRYPT_ROUNDS = 12`) |
-| Tokens de recuperação de senha | ✅ | SHA-256 do token gravado; plain text nunca persiste |
-| Escopo read-only Open Finance | ✅ | Sem iniciação de pagamento, transferência ou escrita financeira em nenhuma camada |
-| Log de auditoria | ✅ | Tabela `LogAuditoria` registra todas as ações sensíveis com IP e timestamp |
-| Retenção mínima de logs | ✅ | Logs de auditoria deletados em cascade com a conta do usuário |
+| Criptografia em repouso | ⚠️ | O `itemId` do Pluggy é criptografado com AES-256-GCM (`EncryptionService`). **Os tokens da Alexa (`VinculoAlexa`) ficam em texto no banco**; ver pendências |
+| Criptografia em trânsito | ✅ | HTTPS na API publicada (TLS do Railway); o app usa a URL `https` |
+| Hash de senhas | ✅ | bcrypt, 12 rounds |
+| Tokens de recuperação de senha | ✅ | Só o SHA-256 é gravado; expiram em 30 minutos e são de uso único |
+| Escopo somente leitura no Open Finance | ✅ | Nenhuma rota inicia pagamento, transferência ou escrita financeira |
+| Auditoria | ⚠️ | `LogAuditoria` registra ações sensíveis com IP e horário (cadastro, login, falhas e bloqueios, logout, troca/redefinição de senha, perfil, conexão e revogação de consentimento, consultas de saldo/contas, regras, sincronização e exclusão da conta). **Atrás do proxy do Railway o IP gravado é o do proxy**, porque o `trust proxy` não está configurado |
+| Retenção de logs | ✅ | Os registros de auditoria são apagados em cascata com a conta |
 
 ### 1.4 Incidentes
 
-Em caso de incidente de segurança envolvendo dados pessoais, a ANPD deve ser notificada em até 72 horas conforme Art. 48 da LGPD. O contato do controlador é o e-mail institucional da equipe acadêmica do projeto.
+Em caso de incidente de segurança com dados pessoais, a ANPD deve ser notificada em prazo razoável (Art. 48 da LGPD). O contato do controlador é o e-mail institucional da equipe acadêmica do projeto.
 
 ---
 
 ## 2. Segurança da API
 
-### 2.1 Autenticação e Autorização
+### 2.1 Autenticação e autorização
 
 | Controle | Status | Detalhe |
 |---|---|---|
-| JWT com expiração curta | ✅ | Access token: padrão NestJS JwtModule (default 60s); refresh token: 30 dias |
-| Refresh token rotativo | ✅ | A cada renovação, novo `refreshHash` é gerado e o anterior é invalidado |
-| Bloqueio por tentativas | ✅ | 5 tentativas falhas → bloqueio de 15 minutos |
-| Revogação de sessões | ✅ | Logout e alteração de senha revogam todas as sessões ativas |
-| Guard JWT em todas as rotas protegidas | ✅ | `@UseGuards(JwtAuthGuard)` em todos os controllers pós-login |
+| Access token de curta duração | ✅ | JWT de **15 minutos** |
+| Refresh token rotativo | ✅ | Válido por 30 dias; a cada renovação o hash é substituído e o anterior deixa de valer. A sessão é guardada no banco (`Sessao`), o que permite revogação imediata |
+| Bloqueio por tentativas | ✅ | 5 falhas → bloqueio de 15 minutos (`429`). Vale para o login do app **e** para o login da página de autorização da Alexa |
+| Revogação de sessões | ✅ | Logout e alteração/redefinição de senha revogam as sessões |
+| Resposta genérica no login | ✅ | "E-mail ou senha incorretos", com `bcrypt.compare` contra um hash falso quando o e-mail não existe (sem diferença de tempo) |
+| Guard JWT nas rotas protegidas | ✅ | `JwtAuthGuard` nos controllers autenticados |
+| Escopo restrito para o token da Alexa | ✅ | O token da Alexa só acessa `GET /contas/saldo`, `GET /transacoes/resumo-categorias` e `PATCH /auth/alexa-id`; as demais rotas respondem `403` |
+| Isolamento entre usuários | ✅ | Consultas filtradas pelo usuário do token (`userId`) |
+| `JWT_SECRET` obrigatório | ✅ | A API não sobe sem ele; não há valor padrão |
+| Limite geral de requisições (rate limiting) | ❌ | Só existe o bloqueio de login; cadastro e demais rotas não têm limite |
 
-### 2.2 Validação de Entrada
-
-| Controle | Status | Detalhe |
-|---|---|---|
-| ValidationPipe global (whitelist + transform) | ✅ | `app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))` |
-| DTOs com class-validator em todas as rotas | ✅ | `@IsEmail`, `@IsString`, `@MinLength`, `@IsInt`, etc. |
-| Sanitização de SQL | ✅ | Prisma usa queries parametrizadas; sem SQL raw |
-| Proteção contra XSS | ✅ | API JSON-only; sem renderização HTML nas rotas de dados |
-
-### 2.3 Segredos e Configuração
+### 2.2 Validação de entrada
 
 | Controle | Status | Detalhe |
 |---|---|---|
-| Segredos apenas via variáveis de ambiente | ✅ | `ConfigModule.forRoot({ isGlobal: true })`; nenhum segredo hardcoded |
-| `.env` no `.gitignore` | ✅ | Apenas `.env.example` no repositório |
-| Rotação de chave AES | ⚠️ | Rotação manual necessária; fora do escopo do MVPacadêmico |
+| `ValidationPipe` global | ✅ | `whitelist: true` e `transform: true`. **Todo campo de DTO precisa de decorator**: sem ele, o campo é descartado (um bug assim impediu a troca de token da Alexa até ser corrigido, e há teste cobrindo) |
+| DTOs com `class-validator` | ✅ | |
+| Validação de regras de negócio | ✅ | Ex.: regra de alerta exige limite maior que zero e categoria quando o tipo pede |
+| SQL | ✅ | Prisma, com consultas parametrizadas; sem SQL manual |
+| XSS | ✅ | A API é JSON, exceto a página de login do Account Linking, que é HTML: o `redirect_uri` só é aceito se estiver na lista exata e o `state` é escapado antes de ir para o `<script>` |
+| Cabeçalhos de segurança (`helmet`) e política de CORS | ❌ | Não configurados |
 
-### 2.4 Webhook Pluggy
+### 2.3 Segredos e configuração
 
 | Controle | Status | Detalhe |
 |---|---|---|
-| Validação de assinatura HMAC-SHA256 | ✅ | `WebhookController` verifica header `x-pluggy-signature` |
-| Rejeição de payloads inválidos | ✅ | Retorna 401 se a assinatura não conferir |
+| Segredos só em variáveis de ambiente | ✅ | `ConfigModule`; nenhum segredo no código |
+| Arquivos de segredo fora do Git | ✅ | `.env` e arquivos auxiliares (`.env.railway`, `.env.alexa-eventos`) no `.gitignore`; só o `.env.example` é versionado |
+| Rotação de chaves | ⚠️ | Trocar o `JWT_SECRET` invalida as sessões e os vínculos da Alexa. A `ENCRYPTION_KEY` não tem rotação automática: trocá-la torna ilegíveis os `itemId` já gravados |
+| Container sem privilégios | ❌ | A imagem Docker executa como `root` |
+
+### 2.4 Webhook do Pluggy
+
+| Controle | Status | Detalhe |
+|---|---|---|
+| Autenticação | ✅ | O Pluggy **não assina** os eventos de item (sem HMAC). A autenticação é um header personalizado: o webhook é cadastrado com `x-webhook-secret` e o backend compara com `PLUGGY_WEBHOOK_SECRET` em tempo constante |
+| Rejeição | ✅ | Segredo ausente ou errado → `401`; item sem consentimento correspondente é ignorado |
 
 ---
 
-## 3. Open Finance — Escopo Read-Only
+## 3. Open Finance — escopo somente leitura
 
-O projeto adota escopo estritamente de **consulta**:
-
-- Nenhum endpoint inicia pagamento, transferência ou qualquer operação de escrita financeira
-- O Pluggy Connect Widget é usado apenas para autenticação e leitura de transações
-- Consentimentos são do tipo `READ_ONLY`
-- Revisado e aprovado no plano do DVP — cláusula de escopo (§3.1)
+- Nenhum endpoint inicia pagamento, transferência ou operação de escrita financeira.
+- O Pluggy Connect é usado só para autenticar e **ler** contas e transações.
+- A sincronização consulta os últimos 90 dias.
 
 ---
 
-## 4. Alexa Skill — Privacidade de Voz
+## 4. Alexa
 
-| Item | Status |
-|---|---|
-| Account Linking via OAuth 2.0 Authorization Code (padrão Alexa) | ✅ |
-| Tokens Alexa não persistidos fora do `VinculoAlexa` | ✅ |
-| Dados de voz processados exclusivamente pela Alexa (AWS) | ✅ |
-| Skill não coleta áudio nem transcrições de voz | ✅ |
-| Proactive Events enviados apenas ao `alexaUserId` vinculado | ✅ |
+| Item | Status | Detalhe |
+|---|---|---|
+| Account Linking OAuth 2.0 (Authorization Code) | ✅ | Código de uso único, válido por 5 minutos |
+| Validação do cliente | ✅ | `client_id` e segredo (HTTP Basic) conferidos no `/oauth/token` |
+| Endereços de retorno | ✅ | Só `https` e só os Redirect URLs listados em `ALEXA_REDIRECT_URIS`; sem lista, nada é aceito |
+| Bloqueio de tentativas na página de login | ✅ | Mesmas regras do login do app |
+| Tokens guardados no banco | ⚠️ | `accessToken` e `refreshToken` do `VinculoAlexa` ficam **em texto** |
+| Áudio e transcrições | ✅ | A skill não coleta nem armazena voz; o processamento é da Alexa |
+| Alertas proativos | ✅ | Enviados apenas ao `alexaUserId` do usuário vinculado, e só se ele ativou as notificações |
+| Revogação do vínculo | ⚠️ | Não há tela no app; a exclusão da conta apaga o vínculo |
 
 ---
 
-## 5. Dependências e Vulnerabilidades
+## 5. App
+
+| Item | Status | Detalhe |
+|---|---|---|
+| Tokens no aparelho | ✅ | `flutter_secure_storage` (Keychain/Keystore) |
+| Sessão | ✅ | Restaurada ao abrir; refresh renovado uma única vez por rodada de requisições; sessão expirada leva ao login |
+| Biometria | ✅ | Bloqueia ao abrir e após 30 s em segundo plano; 3 falhas ou aparelho sem biometria exigem a senha (encerra a sessão local) |
+| Cache local | ⚠️ | Transações ficam em SQLite sem criptografia; o cache é apagado no logout |
+
+---
+
+## 6. Dependências
 
 Execute regularmente:
 
 ```bash
-# Backend
 cd backend && npm audit
-
-# App Flutter
 cd app && flutter pub outdated
 ```
 
-Aplique patches de segurança antes de cada release de produção.
+Aplique correções de segurança antes de cada publicação.
 
 ---
 
-## 6. Referências
+## 7. Pendências de conformidade
+
+| Prioridade | Pendência |
+|---|---|
+| Alta | Criptografar os tokens da Alexa gravados no banco (hoje em texto) |
+| Alta | Texto de finalidade e política de privacidade reais no app (a URL do manifest da Alexa ainda é um marcador) |
+| Média | Limite geral de requisições (cadastro, recuperação de senha) |
+| Média | `trust proxy` para gravar o IP real na auditoria |
+| Média | `helmet` e política de CORS |
+| Média | Executar o container sem `root` |
+| Baixa | Rotação da `ENCRYPTION_KEY` (re-criptografar os `itemId`) |
+| Baixa | Criptografar o cache SQLite do app |
+| Baixa | Tela para revogar o vínculo da Alexa |
+
+---
+
+## 8. Referências
 
 - [Lei nº 13.709/2018 — LGPD](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm)
 - [ANPD — Autoridade Nacional de Proteção de Dados](https://www.gov.br/anpd)
 - [OWASP Top 10 2021](https://owasp.org/Top10/)
-- [Pluggy — Documentação Open Finance](https://docs.pluggy.ai)
-- [Alexa — Account Linking Guide](https://developer.amazon.com/en-US/docs/alexa/account-linking/account-linking-overview.html)
+- [Pluggy — Documentação](https://docs.pluggy.ai)
+- [Alexa — Account Linking](https://developer.amazon.com/en-US/docs/alexa/account-linking/account-linking-overview.html)

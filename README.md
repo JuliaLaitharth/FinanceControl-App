@@ -1,6 +1,6 @@
 # FinanceControl
 
-Assistente financeiro pessoal com integração Open Finance (Pluggy), notificações push (FCM), skill Alexa e proteção LGPD.
+Assistente financeiro pessoal com integração Open Finance (Pluggy), app Flutter, API NestJS e skill Alexa, com foco em LGPD.
 
 > Projeto acadêmico — DVP v3.0 — Universidade de Passo Fundo
 
@@ -8,251 +8,310 @@ Assistente financeiro pessoal com integração Open Finance (Pluggy), notificaç
 
 ## Sumário
 
-- [Visão Geral](#visão-geral)
+- [Visão geral](#visão-geral)
+- [Estado atual dos requisitos](#estado-atual-dos-requisitos)
 - [Arquitetura](#arquitetura)
 - [Requisitos](#requisitos)
-- [Configuração Local](#configuração-local)
-- [Deploy](#deploy)
-- [Variáveis de Ambiente](#variáveis-de-ambiente)
-- [API — Endpoints](#api--endpoints)
-- [Testes](#testes)
-- [Conformidade LGPD](#conformidade-lgpd)
-- [Decisões de Arquitetura](#decisões-de-arquitetura)
+- [Configuração local](#configuração-local)
+- [Publicação (deploy)](#publicação-deploy)
+- [Variáveis de ambiente](#variáveis-de-ambiente)
+- [API — endpoints](#api--endpoints)
+- [Testes e CI](#testes-e-ci)
+- [Integrações](#integrações)
+- [Segurança e LGPD](#segurança-e-lgpd)
+- [Limitações conhecidas e próximos passos](#limitações-conhecidas-e-próximos-passos)
+- [Documentação](#documentação)
 
 ---
 
-## Visão Geral
+## Visão geral
 
 | Camada | Tecnologia |
 |---|---|
-| Backend | NestJS 12 (ESM), PostgreSQL 16, Prisma 5, Redis 7, BullMQ |
-| Mobile | Flutter 3.47 / Dart 3.5 — Riverpod 2.5 (MVVM) |
-| Open Finance | Pluggy SDK (sandbox e produção) |
-| Push | Firebase Admin SDK (FCM) |
-| Voz | Alexa Skill (ASK SDK v2) |
-| Auth | JWT + Refresh Token + bcrypt |
-| Criptografia | AES-256-GCM em repouso (`itemIdPluggy`) |
-| Deploy | Railway · Render · Docker Compose |
+| Backend | NestJS 12 (ESM), PostgreSQL 16, Prisma 5, Redis 7, BullMQ 6 |
+| App | Flutter 3.47 / Dart 3.13 — Riverpod (MVVM), Dio, sqflite, fl_chart, local_auth |
+| Open Finance | Pluggy (SDK `pluggy-sdk` no backend, `flutter_pluggy_connect` no app) |
+| Voz | Alexa Skill personalizada (ASK SDK v2) em AWS Lambda |
+| Autenticação | JWT (access de 15 min) + refresh token rotativo de 30 dias, bcrypt (12 rounds) |
+| Criptografia | AES-256-GCM em repouso para o `itemId` do Pluggy |
+| Publicação | Docker (imagem de produção) no Railway; Render e Docker Compose como alternativas |
+| CI | GitHub Actions (backend: lint e testes; Flutter: análise e testes) |
 
-### Requisitos Funcionais implementados
+---
 
-| RF | Descrição |
-|---|---|
-| RF01 | Cadastro, login (bloqueio 5 tentativas), biometria |
-| RF02 | Integração Pluggy — contas, Connect Widget |
-| RF03 | Saldo consolidado, cache SQLite |
-| RF04 | Transações com filtros, paginação e sincronização |
-| RF05 | Auto-categorização por palavras-chave + regras do usuário |
-| RF06 | Regras de alerta personalizadas |
-| RF07 | Notificações push (FCM) + central de notificações |
-| RF08 | Alexa Skill — OAuth 2.0 Account Linking + Proactive Events |
-| RF09 | Dashboard fl_chart — PieChart categorias + BarChart mensal |
-| RF10 | LGPD — exclusão total de dados (revogação Pluggy + cascade) |
-| RF11 | Perfil — editar nome, alterar senha, biometria |
+## Estado atual dos requisitos
+
+Legenda: ✅ funcionando e verificado · ⚠️ parcial ou pendente.
+
+| RF | Descrição | Estado |
+|---|---|---|
+| RF01 | Cadastro, login com bloqueio (5 falhas → 15 min), sessão restaurada ao abrir o app, biometria com fallback para senha | ✅ — a recuperação de senha **por e-mail** ⚠️ ainda não envia e-mail (o token só aparece no log) |
+| RF02 | Conexão de contas via Pluggy Connect | ✅ |
+| RF03 | Saldo consolidado e cache local (SQLite) | ✅ |
+| RF04 | Transações com paginação e filtros (período, categoria, tipo, conta) e sincronização | ✅ — filtros por valor e por banco ⚠️ pendentes |
+| RF05 | Categorização automática por palavras-chave e regras do usuário | ✅ no backend — telas de correção manual e de regras de categorização ⚠️ pendentes |
+| RF06 | Regras de alerta (saldo mínimo, transação grande, despesa por categoria; canais Push, Alexa ou ambos) | ✅ — alerta do tipo Pix e "um alerta de saldo mínimo por conta" ⚠️ pendentes |
+| RF07 | Central de notificações no app e push (FCM) | ✅ central de notificações — **push no aparelho ⚠️**: o backend envia, mas o app ainda não integra o `firebase_messaging` |
+| RF08 | Alexa: vínculo de conta (OAuth 2.0), saldo e gastos por voz | ✅ — alertas por voz ⚠️ configuração em andamento (ver [integrações](docs/INTEGRACOES.md#alertas-proativos-por-voz)) |
+| RF09 | Relatórios: despesas por categoria (por período) e receitas × despesas por mês | ✅ |
+| RF10 | LGPD: revogação de consentimento e exclusão total da conta | ✅ |
+| RF11 | Perfil: editar nome, alterar senha, biometria, excluir conta | ✅ — alterar **e-mail** ⚠️ não implementado |
 
 ---
 
 ## Arquitetura
 
 ```
-financecontrol/
-├── backend/            # API REST — NestJS (ESM)
-│   ├── prisma/         # Schema, migrations e seed
+FinanceControl/
+├── backend/                # API REST — NestJS (ESM)
+│   ├── Dockerfile          # Imagem de produção (migrations + servidor)
+│   ├── railway.toml        # Config do Railway (Root Directory = backend)
+│   ├── prisma/             # Schema, migrations e seed
+│   ├── scripts/            # start.sh e utilitários de operação
 │   └── src/
-│       ├── auth/       # JWT, bcrypt, sessões, biometria
-│       ├── pluggy/     # Adapter Open Finance
-│       ├── transacao/  # Sincronização, filtros, categorização
-│       ├── worker/     # BullMQ processor (pluggy-sync)
-│       ├── alexa/      # Proactive Events
-│       ├── oauth/      # Authorization Code Flow (Alexa Account Linking)
-│       ├── lgpd/       # Exclusão total LGPD
+│       ├── auth/           # JWT, sessões, bloqueio, biometria, perfil
+│       ├── consentimento/  # Conexão Pluggy (connect token e itemId criptografado)
+│       ├── conta/          # Contas e saldo consolidado
+│       ├── transacao/      # Sincronização, filtros, resumos e categorização
+│       ├── categoria/      # Categorias padrão (garantidas na subida)
+│       ├── regra-alerta/   # Regras de alerta
+│       ├── regra-categorizacao/
+│       ├── notificacao/    # Central de notificações
+│       ├── worker/         # Fila BullMQ (pluggy-sync) e avaliação das regras
+│       ├── webhook/        # Webhooks do Pluggy
+│       ├── oauth/          # Account Linking da Alexa
+│       ├── alexa/          # Eventos proativos
+│       ├── fcm/            # Push (Firebase Admin)
+│       ├── lgpd/           # Exclusão total de dados
 │       └── ...
-├── app/                # Flutter — MVVM + Riverpod
+├── app/                    # Flutter — MVVM + Riverpod
 │   └── lib/features/
-│       ├── auth/       # Login, registro, perfil
-│       ├── accounts/   # Contas bancárias
-│       ├── transactions/ # Extrato com filtros
-│       ├── dashboard/  # Relatórios fl_chart
-│       ├── alerts/     # Regras de alerta
-│       └── notifications/ # Central de notificações
-└── alexa-skill/        # ASK SDK — handlers, models
+│       ├── auth/           # Login, cadastro, perfil, biometria
+│       ├── accounts/       # Contas e conexão Pluggy
+│       ├── home/           # Saldo consolidado
+│       ├── transactions/   # Extrato
+│       ├── dashboard/      # Relatórios
+│       ├── alert_rules/    # Regras de alerta
+│       ├── notifications/  # Central de notificações
+│       └── main/           # Navegação por abas
+├── alexa-skill/            # Skill: handlers, modelo de voz, manifest, script do pacote da Lambda
+└── docs/                   # Documentação (ver abaixo)
 ```
+
+Fluxo principal: o app chama a API; ao conectar uma conta, a API enfileira uma sincronização (BullMQ) que busca contas e transações no Pluggy, categoriza, avalia as regras de alerta e grava notificações. O webhook do Pluggy dispara novas sincronizações. A skill Alexa consulta a mesma API usando um token de escopo restrito.
 
 ---
 
 ## Requisitos
 
-- **Node.js** ≥ 22
-- **Docker** e **Docker Compose** (para banco e Redis locais)
-- **Flutter** ≥ 3.47 / Dart ≥ 3.5
-- Conta [Pluggy](https://pluggy.ai) (sandbox gratuito)
-- Projeto Firebase com FCM habilitado (opcional)
+- **Node.js** 20 ou superior (o CI usa 20; a imagem Docker usa 22)
+- **Docker** e **Docker Compose** (PostgreSQL e Redis locais)
+- **Flutter** 3.47 ou superior (Dart 3.13+)
+- Conta [Pluggy](https://pluggy.ai) (o sandbox basta)
+- Opcionais: conta Amazon Developer + AWS (Alexa), projeto Firebase (push)
 
 ---
 
-## Configuração Local
+## Configuração local
 
-### 1. Backend
+### Backend
 
 ```bash
-# Clone e instale dependências
-git clone https://github.com/seu-usuario/FinanceControl.git
-cd FinanceControl
+git clone https://github.com/JuliaLaitharth/FinanceControl-App.git
+cd FinanceControl-App
 
-# Suba o banco e Redis
-docker compose up db redis -d
+# Banco e Redis
+docker compose up -d db redis
 
-# Configure as variáveis de ambiente
-cp backend/.env.example backend/.env
-# Edite backend/.env com seus valores
+# Variáveis de ambiente
+cp backend/.env.example backend/.env      # edite com seus valores
 
-# Instale dependências e gere o cliente Prisma
 cd backend
 npm install
-npx prisma generate
-npx prisma migrate dev
-npx prisma db seed       # categorias padrão
-
-# Inicie o servidor em modo desenvolvimento
-npm run start:dev
+npx prisma migrate deploy                 # cria as tabelas
+npx prisma db seed                        # categorias padrão (a API também as garante ao subir)
+npm run start:dev                         # http://localhost:3000
 ```
 
-A API estará disponível em `http://localhost:3000`.
+Confirme com `curl http://localhost:3000/health`.
 
-### 2. Flutter
+### App
+
+O endereço da API é definido **na hora do build**, com `--dart-define`:
 
 ```bash
 cd app
 flutter pub get
-# Ajuste a baseUrl em lib/core/api/api_client.dart se necessário
-flutter run
+
+# Emulador Android (o padrão 10.0.2.2:3000 aponta para o seu computador)
+flutter run -d emulator-5554
+
+# Simulador iOS
+flutter run -d <id> --dart-define=API_BASE_URL=http://localhost:3000
+
+# Contra a API publicada
+flutter run -d <id> --dart-define=API_BASE_URL=https://SUA-URL
 ```
+
+- Conectar o **Pluggy Bank** (sandbox) exige `PLUGGY_SANDBOX=true` em builds de release (em debug já vem ligado): `--dart-define=PLUGGY_SANDBOX=true`. Credenciais de teste: `user-ok` / `password-ok` (MFA `123456`).
+- **iPhone físico:** o aparelho não enxerga o `localhost` do computador, e o iOS bloqueia `http://` puro; use a API publicada (HTTPS). A assinatura do app exige escolher um *Team* no Xcode (`ios/Runner.xcworkspace`).
+- Como o endereço fica gravado no app, **mudar de ambiente exige reinstalar** com a nova URL.
 
 ---
 
-## Deploy
+## Publicação (deploy)
 
-### Railway (recomendado)
+A API roda como container (`backend/Dockerfile`): espera o banco, aplica as migrations, garante as categorias padrão e inicia o servidor. O passo a passo completo, com a tabela de variáveis e a solução dos problemas mais comuns, está em **[docs/DEPLOY.md](docs/DEPLOY.md)**.
 
-1. Instale o CLI: `npm i -g @railway/cli`
-2. `railway login && railway init`
-3. Adicione os serviços PostgreSQL e Redis pelo painel
-4. Defina as variáveis de ambiente secretas no painel
-5. `railway up`
+Resumo (Railway): conectar o repositório → *Root Directory* `backend` → PostgreSQL e Redis (modelos oficiais do Railway) → variáveis → *Generate Domain* → apontar Pluggy, Alexa e app para a URL pública.
 
-O arquivo `railway.toml` na raiz configura o build.
-
-### Render
-
-1. Conecte o repositório no painel do Render
-2. Clique em **New Blueprint** e selecione `render.yaml`
-3. Defina os segredos marcados como `sync: false` no painel
-4. O deploy é iniciado automaticamente
-
-### Docker Compose (produção local ou VPS)
+Docker Compose local (inclui a API):
 
 ```bash
-# Configure backend/.env com as variáveis de produção
 docker compose up --build -d
 ```
 
 ---
 
-## Variáveis de Ambiente
+## Variáveis de ambiente
 
-Consulte [`backend/.env.example`](backend/.env.example) para a lista completa. As variáveis obrigatórias são:
+A lista comentada está em [`backend/.env.example`](backend/.env.example).
+
+**Obrigatórias** (a API não sobe sem elas):
 
 | Variável | Descrição |
 |---|---|
-| `DATABASE_URL` | String de conexão PostgreSQL |
-| `JWT_SECRET` | Segredo JWT (≥ 64 chars aleatórios) |
-| `REDIS_HOST` / `REDIS_PORT` | Conexão Redis |
-| `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET` | Credenciais Pluggy |
-| `PLUGGY_WEBHOOK_SECRET` | Validação de webhooks |
-| `ENCRYPTION_KEY` | Chave AES-256-GCM (32 bytes em hex) |
+| `DATABASE_URL` | Conexão PostgreSQL |
+| `JWT_SECRET` | Segredo JWT (`openssl rand -hex 64`); **sem valor padrão** |
+| `ENCRYPTION_KEY` | Chave AES-256-GCM: 64 caracteres hex (`openssl rand -hex 32`). Perdê-la torna ilegíveis os `itemId` já gravados |
+| `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET` | Credenciais da aplicação Pluggy |
+| `PLUGGY_WEBHOOK_SECRET` | Valor que o backend exige no header `x-webhook-secret` dos webhooks |
+| `REDIS_URL` **ou** `REDIS_HOST` + `REDIS_PORT` | Redis (`REDIS_URL` aceita usuário, senha e `rediss://`; tem prioridade). `REDIS_PASSWORD` também é aceita |
 
-Variáveis opcionais (graceful no-op se ausentes): `FCM_SERVER_KEY`, `ALEXA_CLIENT_ID`, `ALEXA_CLIENT_SECRET`, variáveis SMTP.
+**Alexa** (sem estas, nenhuma vinculação é aceita):
+
+| Variável | Descrição |
+|---|---|
+| `ALEXA_OAUTH_CLIENT_ID` / `ALEXA_OAUTH_CLIENT_SECRET` | Credenciais do Account Linking (você define e repete no console da Alexa) |
+| `ALEXA_REDIRECT_URIS` | Redirect URLs do console, separadas por vírgula (comparação exata, só `https`) |
+| `ALEXA_SKILL_STAGE` | `development` enquanto a skill não for publicada; `live` depois |
+| `ALEXA_CLIENT_ID` / `ALEXA_CLIENT_SECRET` | Credenciais da skill para os alertas por voz (opcionais) |
+
+**Opcionais:** `FCM_SERVER_KEY` (JSON da conta de serviço do Firebase, puro ou em base64; sem ele o push fica desligado), `PORT`, `NODE_ENV`, `MIGRATE_MAX_TENTATIVAS` e `MIGRATE_ESPERA_SEGUNDOS` (espera pelo banco na subida).
+
+> `SMTP_*` aparecem no `.env.example`, mas **ainda não são lidas**: o envio de e-mail não foi implementado. `API_BASE_URL` é usada pela Lambda da Alexa, não pelo backend.
 
 ---
 
-## API — Endpoints
+## API — endpoints
+
+Todas as rotas `JWT` exigem `Authorization: Bearer <accessToken>`. Um token emitido para a Alexa só acessa `GET /contas/saldo`, `GET /transacoes/resumo-categorias` e `PATCH /auth/alexa-id`.
 
 | Método | Rota | Auth | Descrição |
 |---|---|---|---|
+| GET | `/health` | — | Verificação de saúde (usada pelo Railway) |
 | POST | `/auth/register` | — | Cadastro |
-| POST | `/auth/login` | — | Login |
-| POST | `/auth/refresh` | — | Renovar token |
+| POST | `/auth/login` | — | Login (5 falhas bloqueiam por 15 min) |
+| POST | `/auth/refresh` | — | Renovar tokens (o refresh token rotaciona) |
 | POST | `/auth/logout` | JWT | Encerrar sessão |
-| POST | `/auth/forgot-password` | — | Solicitar reset |
+| POST | `/auth/forgot-password` | — | Solicitar redefinição (hoje só registra o token no log) |
 | POST | `/auth/reset-password` | — | Redefinir senha |
 | GET | `/auth/me` | JWT | Dados do usuário |
-| PATCH | `/auth/biometria` | JWT | Toggle biometria |
+| PATCH | `/auth/biometria` | JWT | Ativar/desativar biometria |
 | PATCH | `/auth/perfil` | JWT | Atualizar nome |
 | PATCH | `/auth/senha` | JWT | Alterar senha |
-| DELETE | `/auth/conta` | JWT | Excluir conta (LGPD) |
-| GET | `/consentimentos` | JWT | Listar consentimentos |
-| POST | `/consentimentos` | JWT | Criar consentimento |
-| DELETE | `/consentimentos/:id` | JWT | Revogar consentimento |
-| GET | `/contas` | JWT | Listar contas bancárias |
+| PATCH | `/auth/fcm-token` | JWT | Registrar token FCM do aparelho |
+| PATCH | `/auth/alexa-id` | JWT | Registrar o ID da Alexa (feito pela skill) |
+| DELETE | `/auth/conta` | JWT | Excluir conta e dados (LGPD) |
+| POST | `/consentimentos/connect-token` | JWT | Token para abrir o Pluggy Connect |
+| POST | `/consentimentos` | JWT | Registrar a conexão (`itemId`) |
+| GET | `/consentimentos` | JWT | Listar conexões |
+| DELETE | `/consentimentos/:id` | JWT | Revogar conexão |
+| GET | `/contas` | JWT | Contas bancárias |
 | GET | `/contas/saldo` | JWT | Saldo consolidado |
-| GET | `/transacoes` | JWT | Listar (filtros + paginação) |
-| POST | `/transacoes/sincronizar` | JWT | Sincronizar via Pluggy |
-| GET | `/transacoes/resumo-categorias` | JWT | Despesas por categoria |
-| GET | `/transacoes/resumo-mensal` | JWT | Receitas/despesas por mês |
+| GET | `/transacoes` | JWT | Extrato (`page`, `limit`, `de`, `ate`, `categoriaId`, `tipo`, `contaId`) |
+| POST | `/transacoes/sincronizar` | JWT | Sincronização manual |
+| GET | `/transacoes/resumo-categorias` | JWT | Despesas por categoria (`dataInicio`, `dataFim`; sem datas, o mês atual) |
+| GET | `/transacoes/resumo-mensal` | JWT | Receitas e despesas por mês (`meses`) |
 | PATCH | `/transacoes/:id/categoria` | JWT | Ajustar categoria manualmente |
-| GET | `/categorias` | JWT | Listar categorias |
-| GET | `/regras-alerta` | JWT | Listar regras |
-| POST | `/regras-alerta` | JWT | Criar regra |
-| PATCH | `/regras-alerta/:id` | JWT | Atualizar regra |
-| DELETE | `/regras-alerta/:id` | JWT | Excluir regra |
+| GET | `/categorias` | JWT | Categorias |
+| GET/POST | `/regras-alerta` | JWT | Listar / criar regra |
+| PATCH/DELETE | `/regras-alerta/:id` | JWT | Atualizar (inclui só `ativa`) / excluir |
 | GET | `/notificacoes` | JWT | Listar notificações |
-| PATCH | `/notificacoes/:id/lida` | JWT | Marcar como lida |
-| GET | `/regras-categorizacao` | JWT | Listar regras de categorização |
-| POST | `/regras-categorizacao` | JWT | Criar regra |
-| DELETE | `/regras-categorizacao/:id` | JWT | Excluir regra |
-| GET | `/oauth/authorize` | — | Página de login (Alexa) |
-| POST | `/oauth/authorize` | — | Autenticar e gerar code |
-| POST | `/oauth/token` | — | Trocar code por token |
-| POST | `/webhooks/pluggy` | HMAC | Webhook Pluggy |
+| GET | `/notificacoes/contagem` | JWT | Quantidade de não lidas |
+| PATCH | `/notificacoes/:id/ler` | JWT | Marcar como lida |
+| PATCH | `/notificacoes/ler-todas` | JWT | Marcar todas como lidas |
+| GET/POST | `/regras-categorizacao` | JWT | Listar / criar regra de categorização |
+| DELETE | `/regras-categorizacao/:id` | JWT | Excluir regra de categorização |
+| GET | `/oauth/authorize` | — | Página de login do Account Linking (Alexa) |
+| POST | `/oauth/authorize` | — | Autenticar e gerar o código |
+| POST | `/oauth/token` | Basic | Trocar código por token / renovar |
+| POST | `/webhooks/pluggy` | header | Webhook do Pluggy (`x-webhook-secret`) |
 
-A coleção Postman completa está em [`docs/FinanceControl.postman_collection.json`](docs/FinanceControl.postman_collection.json).
+A coleção do Postman está em [`docs/FinanceControl.postman_collection.json`](docs/FinanceControl.postman_collection.json).
 
 ---
 
-## Testes
+## Testes e CI
 
 ```bash
+# Backend (124 testes, 15 suítes)
 cd backend
+npm test                 # unitários
+npm run test:cov         # com cobertura
+npm run lint
 
-# Todos os testes unitários
-npm test
-
-# Com cobertura
-npm run test:cov
-
-# Suite específica
-NODE_OPTIONS=--experimental-vm-modules npx jest auth.service
+# App (48 testes)
+cd app
+flutter analyze
+flutter test
 ```
 
-Cobertura atual: **53 testes / 8 suites** (unitários).
+O GitHub Actions roda o lint e os testes do backend e a análise e os testes do Flutter (Flutter 3.47.5) a cada push.
 
 ---
 
-## Conformidade LGPD
+## Integrações
 
-Consulte [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) para o checklist completo.
+Guia de configuração de cada uma em **[docs/INTEGRACOES.md](docs/INTEGRACOES.md)**:
 
-Resumo:
-- Coleta mínima: apenas dados necessários para o serviço
-- Consentimento explícito antes de cada integração Pluggy
-- Direito de acesso: `GET /auth/me`
-- Direito de exclusão: `DELETE /auth/conta` (cascade + revogação Pluggy)
-- Criptografia em repouso: `itemIdPluggy` com AES-256-GCM
-- Log de auditoria: todas as ações sensíveis gravadas em `LogAuditoria`
-- Escopo estritamente read-only: sem iniciação de pagamento ou transferência
+- **Pluggy** — credenciais, fluxo de conexão, sincronização e webhook.
+- **Alexa** — skill, Lambda, Account Linking e alertas por voz.
+- **Push (FCM) e e-mail** — estado atual e o que falta.
 
 ---
 
-## Decisões de Arquitetura
+## Segurança e LGPD
 
-Consulte [`docs/DECISOES.md`](docs/DECISOES.md).
+Checklist completo, com o que está implementado e o que ainda é pendência, em **[docs/COMPLIANCE.md](docs/COMPLIANCE.md)**. Em resumo:
+
+- Escopo **somente leitura**: nenhuma rota inicia pagamento ou transferência.
+- Consentimento explícito: a conexão bancária só ocorre quando o usuário abre o Pluggy Connect.
+- Exclusão total: `DELETE /auth/conta` revoga os itens no Pluggy e apaga os dados em cascata.
+- Criptografia em repouso do `itemId` do Pluggy (AES-256-GCM); senhas com bcrypt; tokens de recuperação guardados só como hash.
+- Auditoria das ações sensíveis (`LogAuditoria`, com IP e horário).
+- Tokens da Alexa ficam em texto no banco (pendência registrada).
+
+---
+
+## Limitações conhecidas e próximos passos
+
+- Push no aparelho (FCM) e envio real de e-mail de recuperação de senha.
+- Telas: correção manual de categoria, regras de categorização, revogação do vínculo da Alexa, filtros do extrato por valor e banco.
+- Alertas: tipo Pix e um único alerta de saldo mínimo por conta (hoje, uma vez a cada 24 h por regra).
+- Alertas por voz: o evento `MessageAlert` apenas avisa que há uma mensagem, sem ler o texto.
+- Criptografar os tokens da Alexa guardados no banco.
+- Pagamentos de fatura do cartão (valor positivo na conta do cartão) entram como receita nos relatórios.
+
+---
+
+## Documentação
+
+| Arquivo | Conteúdo |
+|---|---|
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Publicação no Railway/Render e solução de problemas |
+| [docs/INTEGRACOES.md](docs/INTEGRACOES.md) | Pluggy, Alexa, FCM e e-mail |
+| [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | LGPD e segurança |
+| [docs/DECISOES.md](docs/DECISOES.md) | Decisões de arquitetura e escopo |
+| [app/README.md](app/README.md) | Rodar, testar e instalar o app |
+| [backend/README.md](backend/README.md) | Scripts, testes e operação do backend |
