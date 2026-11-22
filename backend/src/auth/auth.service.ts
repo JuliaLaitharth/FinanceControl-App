@@ -276,6 +276,23 @@ export class AuthService {
     });
   }
 
+  /** Informa se há conta Alexa vinculada (vínculos ativos e não expirados). */
+  async statusAlexa(usuarioId: number) {
+    const dispositivos = await this.prisma.vinculoAlexa.count({
+      where: { usuarioId, ativo: true, expiraEm: { gt: new Date() } },
+    });
+    return { vinculada: dispositivos > 0, dispositivos };
+  }
+
+  /** Revoga todos os vínculos: o token da Alexa deixa de valer na hora (ver JwtStrategy). */
+  async desvincularAlexa(usuarioId: number, ip?: string): Promise<void> {
+    await this.prisma.vinculoAlexa.updateMany({
+      where: { usuarioId, ativo: true },
+      data: { ativo: false },
+    });
+    await this.audit.registrar(usuarioId, 'ALEXA_DESVINCULADA', 'vinculo_alexa', ip);
+  }
+
   private async iniciarSessao(usuarioId: number) {
     const refreshToken = randomBytes(48).toString('hex');
     const sessao = await this.prisma.sessao.create({

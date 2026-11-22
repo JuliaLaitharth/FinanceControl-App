@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../transactions/presentation/screens/regras_categorizacao_screen.dart';
+import '../../data/auth_repository.dart';
 import '../providers/auth_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -69,6 +70,9 @@ class ProfileScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _alterarSenha(context, ref),
           ),
+
+          // Alexa
+          const _AlexaTile(),
 
           // Regras de categorização
           ListTile(
@@ -339,5 +343,78 @@ class ProfileScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       }
     }
+  }
+}
+
+
+/// Mostra se a Alexa está vinculada e permite desvincular (revoga o acesso na hora).
+class _AlexaTile extends ConsumerStatefulWidget {
+  const _AlexaTile();
+
+  @override
+  ConsumerState<_AlexaTile> createState() => _AlexaTileState();
+}
+
+class _AlexaTileState extends ConsumerState<_AlexaTile> {
+  bool? _vinculada; // null = carregando ou indisponível
+
+  @override
+  void initState() {
+    super.initState();
+    _carregar();
+  }
+
+  Future<void> _carregar() async {
+    try {
+      final v = await ref.read(authRepositoryProvider).alexaVinculada();
+      if (mounted) setState(() => _vinculada = v);
+    } catch (_) {}
+  }
+
+  Future<void> _desvincular() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Desvincular a Alexa?'),
+        content: const Text(
+          'A Alexa deixará de acessar seus dados financeiros. '
+          'Para voltar a usar, vincule a conta de novo no app Alexa.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Desvincular')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(authRepositoryProvider).desvincularAlexa();
+      if (!mounted) return;
+      setState(() => _vinculada = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Alexa desvinculada')));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível desvincular a Alexa')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vinculada = _vinculada;
+    return ListTile(
+      leading: const Icon(Icons.record_voice_over_outlined),
+      title: const Text('Alexa'),
+      subtitle: Text(vinculada == null
+          ? 'Verificando…'
+          : vinculada
+              ? 'Conta vinculada'
+              : 'Nenhuma conta vinculada (vincule pelo app Alexa)'),
+      trailing: vinculada == true
+          ? TextButton(onPressed: _desvincular, child: const Text('Desvincular'))
+          : null,
+    );
   }
 }

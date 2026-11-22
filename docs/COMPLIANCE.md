@@ -112,7 +112,7 @@ Em caso de incidente de segurança com dados pessoais, a ANPD deve ser notificad
 | Tokens guardados no banco | ✅ | `accessToken` e `refreshToken` do `VinculoAlexa` ficam só como hash SHA-256 |
 | Áudio e transcrições | ✅ | A skill não coleta nem armazena voz; o processamento é da Alexa |
 | Alertas proativos | ✅ | Enviados apenas ao `alexaUserId` do usuário vinculado, e só se ele ativou as notificações |
-| Revogação do vínculo | ⚠️ | Não há tela no app; a exclusão da conta apaga o vínculo |
+| Revogação do vínculo | ✅ | Perfil → Alexa → Desvincular (`DELETE /auth/alexa`); o token deixa de valer na hora. A exclusão da conta também apaga o vínculo |
 
 ---
 
@@ -147,7 +147,6 @@ Aplique correções de segurança antes de cada publicação.
 | Alta | Texto de finalidade e política de privacidade reais no app (a URL do manifest da Alexa ainda é um marcador) |
 | Baixa | Rotação da `ENCRYPTION_KEY` (re-criptografar os `itemId`) |
 | Baixa | Criptografar o cache SQLite do app |
-| Baixa | Tela para revogar o vínculo da Alexa |
 
 ---
 

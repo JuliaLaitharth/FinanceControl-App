@@ -378,6 +378,28 @@ describe('AuthService', () => {
     });
   });
 
+  describe('vínculo com a Alexa', () => {
+    it('informa que há conta vinculada', async () => {
+      prisma.vinculoAlexa.count.mockResolvedValue(2 as never);
+      expect(await service.statusAlexa(1)).toEqual({ vinculada: true, dispositivos: 2 });
+    });
+
+    it('informa que não há vínculo', async () => {
+      prisma.vinculoAlexa.count.mockResolvedValue(0 as never);
+      expect(await service.statusAlexa(1)).toEqual({ vinculada: false, dispositivos: 0 });
+    });
+
+    it('desvincula só os vínculos do usuário e audita', async () => {
+      prisma.vinculoAlexa.updateMany.mockResolvedValue({ count: 1 } as never);
+      await service.desvincularAlexa(1, '127.0.0.1');
+      expect(prisma.vinculoAlexa.updateMany).toHaveBeenCalledWith({
+        where: { usuarioId: 1, ativo: true },
+        data: { ativo: false },
+      });
+      expect(auditService.registrar).toHaveBeenCalledWith(1, 'ALEXA_DESVINCULADA', 'vinculo_alexa', '127.0.0.1');
+    });
+  });
+
   // ─── ISOLAMENTO ──────────────────────────────────────────────────────────────
 
   describe('isolamento de dados entre usuários', () => {

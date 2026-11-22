@@ -118,6 +118,19 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('alexa')
+  statusAlexa(@Req() req: AuthRequest) {
+    return this.auth.statusAlexa(req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('alexa')
+  @HttpCode(204)
+  async desvincularAlexa(@Req() req: AuthRequest, @Ip() ip: string) {
+    await this.auth.desvincularAlexa(req.user.userId, ip);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Patch('alexa-id')
   @HttpCode(204)
   async vincularAlexaId(@Req() req: AuthRequest, @Body() dto: AlexaIdDto) {

@@ -222,6 +222,8 @@ Todas as rotas `JWT` exigem `Authorization: Bearer <accessToken>`. Um token emit
 | PATCH | `/auth/email` | JWT | Alterar e-mail (reconfirma a senha) |
 | PATCH | `/auth/senha` | JWT | Alterar senha |
 | PATCH | `/auth/fcm-token` | JWT | Registrar token FCM do aparelho |
+| GET | `/auth/alexa` | JWT | Informa se há conta Alexa vinculada |
+| DELETE | `/auth/alexa` | JWT | Desvincular a Alexa (revoga os tokens) |
 | PATCH | `/auth/alexa-id` | JWT | Registrar o ID da Alexa (feito pela skill) |
 | DELETE | `/auth/conta` | JWT | Excluir conta e dados (LGPD) |
 | POST | `/consentimentos/connect-token` | JWT | Token para abrir o Pluggy Connect |
@@ -298,7 +300,6 @@ Checklist completo, com o que está implementado e o que ainda é pendência, em
 ## Limitações conhecidas e próximos passos
 
 - Push no aparelho (FCM) e envio real de e-mail de recuperação de senha.
-- Telas: revogação do vínculo da Alexa.
 - Alertas por voz: o evento `MessageAlert` apenas avisa que há uma mensagem, sem ler o texto.
 - Criptografar os tokens da Alexa guardados no banco.
 - Pagamentos de fatura do cartão (valor positivo na conta do cartão) entram como receita nos relatórios.

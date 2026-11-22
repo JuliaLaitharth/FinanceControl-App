@@ -105,6 +105,15 @@ class AuthRepository {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<bool> alexaVinculada() async {
+    final res = await _client.dio.get('/auth/alexa');
+    return (res.data as Map<String, dynamic>)['vinculada'] == true;
+  }
+
+  Future<void> desvincularAlexa() async {
+    await _client.dio.delete('/auth/alexa');
+  }
+
   Future<void> alterarSenha({
     required String senhaAtual,
     required String novaSenha,
