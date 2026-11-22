@@ -117,6 +117,27 @@ describe('TransacaoService', () => {
       );
     });
 
+    it('aplica filtros de valor e instituição no where', async () => {
+      prisma.transacao.findMany.mockResolvedValue([] as never);
+      prisma.transacao.count.mockResolvedValue(0);
+
+      const filtro = Object.assign(new FiltroTransacaoDto(), {
+        valorMin: 10,
+        valorMax: 100,
+        instituicaoId: 7,
+      });
+      await service.listar(42, filtro);
+
+      expect(prisma.transacao.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            valor: { gte: 10, lte: 100 },
+            conta: { consentimento: { usuarioId: 42, status: 'ATIVO', instituicaoId: 7 } },
+          }),
+        }),
+      );
+    });
+
     it('aplica filtros de tipo e categoriaId no where', async () => {
       prisma.transacao.findMany.mockResolvedValue([] as never);
       prisma.transacao.count.mockResolvedValue(0);

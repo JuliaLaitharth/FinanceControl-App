@@ -38,6 +38,7 @@ class _TransacoesScreenState extends ConsumerState<TransacoesScreen> {
   Future<void> _abrirFiltros() async {
     final state = ref.read(transacoesProvider);
     final categorias = ref.read(categoriasProvider).valueOrNull ?? [];
+    final instituicoes = ref.read(instituicoesProvider).valueOrNull ?? [];
 
     await showModalBottomSheet<void>(
       context: context,
@@ -48,6 +49,7 @@ class _TransacoesScreenState extends ConsumerState<TransacoesScreen> {
       builder: (ctx) => _FiltrosSheet(
         filtrosAtuais: state.filtros,
         categorias: categorias,
+        instituicoes: instituicoes,
         onAplicar: (f) {
           ref.read(transacoesProvider.notifier).setFiltros(f);
         },
@@ -266,11 +268,13 @@ class _FiltrosSheet extends StatefulWidget {
   const _FiltrosSheet({
     required this.filtrosAtuais,
     required this.categorias,
+    required this.instituicoes,
     required this.onAplicar,
   });
 
   final FiltrosTransacao filtrosAtuais;
   final List<dynamic> categorias;
+  final List<Map<String, dynamic>> instituicoes;
   final void Function(FiltrosTransacao) onAplicar;
 
   @override
@@ -279,11 +283,26 @@ class _FiltrosSheet extends StatefulWidget {
 
 class _FiltrosSheetState extends State<_FiltrosSheet> {
   late FiltrosTransacao _filtros;
+  final _minCtrl = TextEditingController();
+  final _maxCtrl = TextEditingController();
+
+  static String _fmt(double? v) => v == null ? '' : v.toString();
+
+  static double? _num(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
+
+  @override
+  void dispose() {
+    _minCtrl.dispose();
+    _maxCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
     _filtros = widget.filtrosAtuais;
+    _minCtrl.text = _fmt(_filtros.valorMin);
+    _maxCtrl.text = _fmt(_filtros.valorMax);
   }
 
   void _selecionarPeriodo(int dias) {
@@ -312,7 +331,11 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               TextButton(
                 onPressed: () {
-                  setState(() => _filtros = const FiltrosTransacao());
+                  setState(() {
+                    _filtros = const FiltrosTransacao();
+                    _minCtrl.clear();
+                    _maxCtrl.clear();
+                  });
                 },
                 child: const Text('Limpar'),
               ),
@@ -408,10 +431,68 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
             const SizedBox(height: 16),
           ],
 
+          // Banco
+          if (widget.instituicoes.isNotEmpty) ...[
+            const Text('Banco', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<int?>(
+              initialValue: _filtros.instituicaoId,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('Todos')),
+                ...widget.instituicoes.map((i) => DropdownMenuItem<int?>(
+                      value: i['id'] as int?,
+                      child: Text('${i['nome']}'),
+                    )),
+              ],
+              onChanged: (v) => setState(
+                () => _filtros = v == null
+                    ? _filtros.copyWith(clearInstituicao: true)
+                    : _filtros.copyWith(instituicaoId: v),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Valor
+          const Text('Valor (R\$)', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _minCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Mínimo', border: OutlineInputBorder()),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _maxCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Máximo', border: OutlineInputBorder()),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
           SizedBox(
             width: double.infinity,
             child: FilledButton(
               onPressed: () {
+                final min = _num(_minCtrl.text);
+                final max = _num(_maxCtrl.text);
+                _filtros = _filtros.copyWith(
+                  valorMin: min,
+                  valorMax: max,
+                  clearValorMin: min == null,
+                  clearValorMax: max == null,
+                );
                 widget.onAplicar(_filtros);
                 Navigator.pop(context);
               },

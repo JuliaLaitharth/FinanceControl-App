@@ -10,6 +10,9 @@ class FiltrosTransacao {
     this.ate,
     this.categoriaId,
     this.tipo,
+    this.instituicaoId,
+    this.valorMin,
+    this.valorMax,
     this.page = 1,
   });
 
@@ -17,6 +20,9 @@ class FiltrosTransacao {
   final DateTime? ate;
   final int? categoriaId;
   final String? tipo; // 'DEBIT' | 'CREDIT' | null
+  final int? instituicaoId;
+  final double? valorMin;
+  final double? valorMax;
   final int page;
 
   FiltrosTransacao copyWith({
@@ -24,7 +30,13 @@ class FiltrosTransacao {
     DateTime? ate,
     int? categoriaId,
     String? tipo,
+    int? instituicaoId,
+    double? valorMin,
+    double? valorMax,
     int? page,
+    bool clearInstituicao = false,
+    bool clearValorMin = false,
+    bool clearValorMax = false,
     bool clearDe = false,
     bool clearAte = false,
     bool clearCategoria = false,
@@ -35,10 +47,14 @@ class FiltrosTransacao {
         ate: clearAte ? null : (ate ?? this.ate),
         categoriaId: clearCategoria ? null : (categoriaId ?? this.categoriaId),
         tipo: clearTipo ? null : (tipo ?? this.tipo),
+        instituicaoId: clearInstituicao ? null : (instituicaoId ?? this.instituicaoId),
+        valorMin: clearValorMin ? null : (valorMin ?? this.valorMin),
+        valorMax: clearValorMax ? null : (valorMax ?? this.valorMax),
         page: page ?? 1,
       );
 
-  bool get temFiltroAtivo => de != null || ate != null || categoriaId != null || tipo != null;
+  bool get temFiltroAtivo => de != null || ate != null || categoriaId != null || tipo != null ||
+      instituicaoId != null || valorMin != null || valorMax != null;
 
   String? get deStr => de?.toIso8601String().split('T')[0];
   String? get ateStr => ate?.toIso8601String().split('T')[0];
@@ -133,6 +149,9 @@ class TransacoesNotifier extends StateNotifier<TransacoesState> {
         page: f.page,
         categoriaId: f.categoriaId,
         tipo: f.tipo,
+        instituicaoId: f.instituicaoId,
+        valorMin: f.valorMin,
+        valorMax: f.valorMax,
         de: f.deStr,
         ate: f.ateStr,
       );
@@ -183,6 +202,9 @@ class TransacoesNotifier extends StateNotifier<TransacoesState> {
         page: f.page,
         categoriaId: f.categoriaId,
         tipo: f.tipo,
+        instituicaoId: f.instituicaoId,
+        valorMin: f.valorMin,
+        valorMax: f.valorMax,
         de: f.deStr,
         ate: f.ateStr,
       );
@@ -217,4 +239,10 @@ final transacoesProvider =
 final categoriasProvider = FutureProvider<List<dynamic>>((ref) async {
   final repo = ref.watch(transacoesRepositoryProvider);
   return repo.listarCategorias();
+});
+
+/// Instituições (bancos) das contas conectadas, para o filtro do extrato.
+final instituicoesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final repo = ref.watch(transacoesRepositoryProvider);
+  return repo.listarInstituicoes();
 });

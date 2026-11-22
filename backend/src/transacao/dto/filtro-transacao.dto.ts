@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsISO8601, IsNumber, IsOptional, Max, Min } from 'class-validator';
 
 export class FiltroTransacaoDto {
   @IsOptional()
@@ -23,6 +23,23 @@ export class FiltroTransacaoDto {
   @Type(() => Number)
   @IsInt()
   contaId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  instituicaoId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  valorMin?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  valorMax?: number;
 
   @IsOptional()
   @Type(() => Number)

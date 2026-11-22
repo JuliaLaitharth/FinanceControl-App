@@ -55,6 +55,17 @@ export class TransacaoService {
     if (filtro.categoriaId) where['categoriaId'] = filtro.categoriaId;
     if (filtro.tipo) where['tipo'] = filtro.tipo;
     if (filtro.contaId) where['contaId'] = filtro.contaId;
+    if (filtro.instituicaoId) {
+      where['conta'] = {
+        consentimento: { usuarioId, status: 'ATIVO', instituicaoId: filtro.instituicaoId },
+      };
+    }
+    if (filtro.valorMin !== undefined || filtro.valorMax !== undefined) {
+      where['valor'] = {
+        ...(filtro.valorMin !== undefined ? { gte: filtro.valorMin } : {}),
+        ...(filtro.valorMax !== undefined ? { lte: filtro.valorMax } : {}),
+      };
+    }
 
     const [dados, total] = await Promise.all([
       this.prisma.transacao.findMany({

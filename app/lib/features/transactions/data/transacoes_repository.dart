@@ -16,12 +16,18 @@ class TransacoesRepository {
     int limit = 20,
     int? categoriaId,
     String? tipo,
+    int? instituicaoId,
+    double? valorMin,
+    double? valorMax,
     String? de,
     String? ate,
   }) async {
     final params = <String, dynamic>{'page': page, 'limit': limit};
     if (categoriaId != null) params['categoriaId'] = categoriaId;
     if (tipo != null) params['tipo'] = tipo;
+    if (instituicaoId != null) params['instituicaoId'] = instituicaoId;
+    if (valorMin != null) params['valorMin'] = valorMin;
+    if (valorMax != null) params['valorMax'] = valorMax;
     if (de != null) params['de'] = de;
     if (ate != null) params['ate'] = ate;
 
@@ -29,7 +35,8 @@ class TransacoesRepository {
     final data = res.data as Map<String, dynamic>;
 
     // Persiste no cache somente a primeira página sem filtros adicionais
-    if (page == 1 && categoriaId == null && tipo == null && de == null && ate == null) {
+    if (page == 1 && categoriaId == null && tipo == null && de == null && ate == null &&
+        instituicaoId == null && valorMin == null && valorMax == null) {
       await LocalDatabase.salvarTransacoes(data['dados'] as List<dynamic>);
     }
     return data;
@@ -84,5 +91,18 @@ class TransacoesRepository {
   Future<List<dynamic>> listarCategorias() async {
     final res = await _client.dio.get('/categorias');
     return res.data as List<dynamic>;
+  }
+
+  /// Instituições distintas das contas conectadas do usuário.
+  Future<List<Map<String, dynamic>>> listarInstituicoes() async {
+    final res = await _client.dio.get('/contas');
+    final mapa = <int, Map<String, dynamic>>{};
+    for (final c in res.data as List<dynamic>) {
+      final inst = (c as Map<String, dynamic>)['consentimento']?['instituicao'];
+      if (inst is Map<String, dynamic> && inst['id'] is int) {
+        mapa[inst['id'] as int] = inst;
+      }
+    }
+    return mapa.values.toList();
   }
 }
