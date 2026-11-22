@@ -184,6 +184,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Redefine a senha com o código recebido por e-mail. Retorna a mensagem de erro, ou `null`.
+  Future<String?> redefinirSenha({required String codigo, required String novaSenha}) async {
+    try {
+      await _repo.resetPassword(token: codigo, novaSenha: novaSenha);
+      return null;
+    } catch (e) {
+      return _parseError(e);
+    }
+  }
+
   /// Ativa/desativa a biometria. Retorna a mensagem de erro, ou `null` se deu certo.
   ///
   /// Para ativar, o aparelho precisa ter biometria e o usuário precisa

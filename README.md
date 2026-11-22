@@ -45,7 +45,7 @@ Legenda: ✅ funcionando e verificado · ⚠️ parcial ou pendente.
 
 | RF | Descrição | Estado |
 |---|---|---|
-| RF01 | Cadastro, login com bloqueio (5 falhas → 15 min), sessão restaurada ao abrir o app, biometria com fallback para senha | ✅ — a recuperação de senha **por e-mail** ⚠️ ainda não envia e-mail (o token só aparece no log) |
+| RF01 | Cadastro, login com bloqueio (5 falhas → 15 min), sessão restaurada ao abrir o app, biometria com fallback para senha | ✅ — recuperação de senha por e-mail (código de 8 caracteres, via Resend) |
 | RF02 | Conexão de contas via Pluggy Connect | ✅ |
 | RF03 | Saldo consolidado e cache local (SQLite) | ✅ |
 | RF04 | Transações com paginação e filtros (período, categoria, tipo, conta, banco e valor) e sincronização | ✅ |
@@ -199,7 +199,7 @@ A lista comentada está em [`backend/.env.example`](backend/.env.example).
 
 **Opcionais:** `FCM_SERVER_KEY` (JSON da conta de serviço do Firebase, puro ou em base64; sem ele o push fica desligado), `PORT`, `NODE_ENV`, `MIGRATE_MAX_TENTATIVAS` e `MIGRATE_ESPERA_SEGUNDOS` (espera pelo banco na subida).
 
-> `SMTP_*` aparecem no `.env.example`, mas **ainda não são lidas**: o envio de e-mail não foi implementado. `API_BASE_URL` é usada pela Lambda da Alexa, não pelo backend.
+> `RESEND_API_KEY` e `MAIL_FROM` ativam o envio do código de recuperação de senha (veja [E-mail](docs/INTEGRACOES.md#e-mail)); sem a chave nenhum e-mail é enviado. `API_BASE_URL` é usada pela Lambda da Alexa, não pelo backend.
 
 ---
 
@@ -299,7 +299,7 @@ Checklist completo, com o que está implementado e o que ainda é pendência, em
 
 ## Limitações conhecidas e próximos passos
 
-- Push no aparelho (FCM) e envio real de e-mail de recuperação de senha.
+- Push no aparelho (FCM).
 - Alertas por voz: o evento `MessageAlert` apenas avisa que há uma mensagem, sem ler o texto.
 - Criptografar os tokens da Alexa guardados no banco.
 - Pagamentos de fatura do cartão (valor positivo na conta do cartão) entram como receita nos relatórios.

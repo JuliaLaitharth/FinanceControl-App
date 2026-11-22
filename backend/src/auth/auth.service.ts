@@ -29,6 +29,14 @@ const MSG_CREDENCIAIS = 'E-mail ou senha incorretos';
 const MSG_LINK_INVALIDO = 'Link expirado ou inválido. Solicite um novo link.';
 const MSG_SESSAO = 'Sessão expirada. Faça login novamente.';
 
+// Código curto de recuperação (8 caracteres sem 0/O/1/I): digitável no app, vale 30 min e
+// uma única vez; o limite de requisições do /auth/reset-password impede tentativa em massa.
+const ALFABETO_CODIGO = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function gerarCodigoRecuperacao(): string {
+  return Array.from(randomBytes(8), (b) => ALFABETO_CODIGO[b % ALFABETO_CODIGO.length]).join('');
+}
+const normalizarCodigo = (valor: string) => valor.replace(/[\s-]/g, '').toUpperCase();
+
 const sha256 = (valor: string) => createHash('sha256').update(valor).digest('hex');
 const emMinutos = (min: number) => new Date(Date.now() + min * 60_000);
 const emDias = (dias: number) => new Date(Date.now() + dias * 86_400_000);
@@ -147,7 +155,7 @@ export class AuthService {
         data: { usado: true },
       });
 
-      const token = randomBytes(32).toString('hex');
+      const token = gerarCodigoRecuperacao();
       await this.prisma.tokenRecuperacao.create({
         data: {
           usuarioId: usuario.id,
@@ -155,7 +163,7 @@ export class AuthService {
           expiraEm: emMinutos(RECUPERACAO_MINUTOS),
         },
       });
-      await this.mail.enviarRecuperacaoSenha(usuario.email, token);
+      await this.mail.enviarRecuperacaoSenha(usuario.email, `${token.slice(0, 4)}-${token.slice(4)}`);
       await this.audit.registrar(usuario.id, 'RECUPERACAO_SOLICITADA', 'usuario', ip);
     }
 
@@ -167,7 +175,7 @@ export class AuthService {
 
   async resetPassword(dto: ResetPasswordDto, ip?: string) {
     const registro = await this.prisma.tokenRecuperacao.findUnique({
-      where: { token: sha256(dto.token) },
+      where: { token: sha256(normalizarCodigo(dto.token)) },
     });
     if (!registro || registro.usado || registro.expiraEm < new Date()) {
       throw new BadRequestException(MSG_LINK_INVALIDO);

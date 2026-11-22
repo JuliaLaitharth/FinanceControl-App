@@ -86,4 +86,4 @@ lib/
 
 ## Ainda não implementado
 
-Push no aparelho (`firebase_messaging`), tela de redefinição de senha.
+Push no aparelho (`firebase_messaging`).

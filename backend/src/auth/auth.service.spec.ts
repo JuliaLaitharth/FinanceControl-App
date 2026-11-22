@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { createHash } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
@@ -267,6 +268,19 @@ describe('AuthService', () => {
       }));
     });
 
+    it('gera código curto no formato XXXX-XXXX e guarda só o hash', async () => {
+      prisma.usuario.findUnique.mockResolvedValue(usuarioBase());
+      prisma.tokenRecuperacao.updateMany.mockResolvedValue({ count: 0 });
+      prisma.tokenRecuperacao.create.mockResolvedValue(tokenBase());
+
+      await service.forgotPassword({ email: 'julia@example.com' });
+
+      const enviado = mailService.enviarRecuperacaoSenha.mock.calls[0][1];
+      expect(enviado).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+      const gravado = (prisma.tokenRecuperacao.create.mock.calls[0][0] as { data: { token: string } }).data.token;
+      expect(gravado).toBe(createHash('sha256').update(enviado.replace('-', '')).digest('hex'));
+    });
+
     it('retorna a mesma mensagem genérica quando e-mail não existe (sem vazar informação)', async () => {
       prisma.usuario.findUnique.mockResolvedValue(null);
 
@@ -278,6 +292,14 @@ describe('AuthService', () => {
   });
 
   // ─── REDEFINIÇÃO DE SENHA ────────────────────────────────────────────────────
+
+  it('resetPassword() aceita o código digitado com hífen, espaço e minúsculas', async () => {
+    prisma.tokenRecuperacao.findUnique.mockResolvedValue(null);
+    await expect(service.resetPassword({ token: ' abcd-efgh ', novaSenha: 'Nova1234' })).rejects.toThrow(BadRequestException);
+    expect(prisma.tokenRecuperacao.findUnique).toHaveBeenCalledWith({
+      where: { token: createHash('sha256').update('ABCDEFGH').digest('hex') },
+    });
+  });
 
   describe('resetPassword()', () => {
     it('redefine senha, invalida sessões e retorna confirmação', async () => {

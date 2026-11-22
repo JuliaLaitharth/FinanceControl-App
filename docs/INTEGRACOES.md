@@ -203,4 +203,21 @@ Falta no app: o pacote `firebase_messaging`, os arquivos `google-services.json` 
 
 ## E-mail
 
-**Não implementado.** O `MailService` só escreve o token de recuperação de senha no log (`[DEV] Recuperação de senha para …`). As variáveis `SMTP_*` do `.env.example` ainda não são lidas, e o app não tem tela de redefinição de senha. Falta escolher um provedor SMTP, enviar a mensagem e criar a tela.
+O app recupera a senha com um **código de 8 caracteres** (formato `ABCD-EFGH`) enviado por e-mail; vale 30 minutos e só pode ser usado uma vez (guardado como hash SHA-256). Fluxo: **Esqueci minha senha** → e-mail → **Já tenho o código** → código + nova senha. A resposta é a mesma exista ou não o e-mail, e a redefinição encerra todas as sessões.
+
+O envio usa a API do [Resend](https://resend.com) (plano gratuito basta), configurada por duas variáveis:
+
+| Variável | Valor |
+|---|---|
+| `RESEND_API_KEY` | chave criada em resend.com → API Keys (permissão *Sending access*) |
+| `MAIL_FROM` | remetente, ex.: `FinanceControl <onboarding@resend.dev>` |
+
+**Passo a passo**
+
+1. Crie uma conta em resend.com e uma chave em **API Keys**.
+2. No Railway, serviço da API → **Variables**, adicione `RESEND_API_KEY` (e `MAIL_FROM`, se quiser) e aguarde o redeploy.
+3. Teste: no app, **Esqueci minha senha** com o e-mail cadastrado.
+
+**Limitação importante:** sem um domínio verificado no Resend, o remetente `onboarding@resend.dev` só entrega para o **e-mail da sua própria conta Resend**. Para enviar a outros usuários é preciso verificar um domínio (Resend → Domains) e usá-lo em `MAIL_FROM`.
+
+Sem `RESEND_API_KEY` nada é enviado: em desenvolvimento o código aparece no log (`[DEV] E-mail para …`); em produção sai só um aviso. Falhas do Resend são registradas no log e não mudam a resposta ao usuário.

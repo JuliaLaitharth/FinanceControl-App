@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_provider.dart';
+import 'reset_password_screen.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -44,10 +45,18 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                         size: 64, color: Colors.green),
                     const SizedBox(height: 16),
                     const Text(
-                      'Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.',
+                      'Se o e-mail estiver cadastrado, você receberá um código para redefinir a senha. Ele vale por 30 minutos.',
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: () => Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute<void>(builder: (_) => const ResetPasswordScreen()),
+                      ),
+                      child: const Text('Já tenho o código'),
+                    ),
+                    const SizedBox(height: 12),
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('Voltar ao login'),
@@ -60,7 +69,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const Text(
-                        'Informe seu e-mail para receber o link de redefinição.',
+                        'Informe seu e-mail para receber o código de redefinição.',
                       ),
                       const SizedBox(height: 24),
 
@@ -97,7 +106,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Text('Enviar link'),
+                            : const Text('Enviar código'),
                       ),
                     ],
                   ),
