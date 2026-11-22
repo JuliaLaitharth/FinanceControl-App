@@ -36,7 +36,7 @@
     },
     "permissions": [
       {
-        "name": "alexa::proactive_events"
+        "name": "alexa::devices:all:notifications:write"
       }
     ],
     "privacyAndCompliance": {

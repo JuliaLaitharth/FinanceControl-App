@@ -1,4 +1,11 @@
 services:
+  # Redis (filas BullMQ). noeviction: o BullMQ não pode perder chaves.
+  - type: keyvalue
+    name: financecontrol-redis
+    ipAllowList: [] # só a rede privada da Render
+    plan: free
+    maxmemoryPolicy: noeviction
+
   - type: web
     name: financecontrol-api
     runtime: docker
@@ -18,9 +25,9 @@ services:
       - key: REDIS_URL
         fromService:
           name: financecontrol-redis
-          type: redis
+          type: keyvalue
           property: connectionString
-      # Segredos: defina no painel do Render → Environment
+      # Segredos: defina no painel do Render → Environment (veja docs/DEPLOY.md)
       - key: JWT_SECRET
         sync: false
       - key: PLUGGY_CLIENT_ID
@@ -45,25 +52,9 @@ services:
         sync: false
       - key: ALEXA_CLIENT_SECRET
         sync: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: SMTP_FROM
-        sync: false
-      - key: API_BASE_URL
-        sync: false
 
 databases:
   - name: financecontrol-db
     databaseName: assistente
     user: finuser
-    plan: free
-
-  - name: financecontrol-redis
-    type: redis
-    plan: free
+    plan: free # o plano free do PostgreSQL expira; use um plano pago em produção
