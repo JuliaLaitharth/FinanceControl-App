@@ -35,6 +35,57 @@ class _TransacoesScreenState extends ConsumerState<TransacoesScreen> {
     }
   }
 
+  Future<void> _corrigirCategoria(Map<String, dynamic> tx) async {
+    final categorias = ref.read(categoriasProvider).valueOrNull ?? [];
+    if (categorias.isEmpty) return;
+    final atual = (tx['categoria'] as Map<String, dynamic>?)?['id'] ?? tx['categoriaId'];
+
+    final escolhida = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                child: Text('Categoria de "${tx['descricao'] ?? ''}"',
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: categorias.map((c) {
+                    final cat = c as Map<String, dynamic>;
+                    return ListTile(
+                      leading: Text('${cat['icone'] ?? ''}', style: const TextStyle(fontSize: 20)),
+                      title: Text('${cat['nome']}'),
+                      trailing: cat['id'] == atual ? const Icon(Icons.check) : null,
+                      onTap: () => Navigator.pop(ctx, cat['id'] as int),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (escolhida == null || escolhida == atual) return;
+
+    final erro = await ref
+        .read(transacoesProvider.notifier)
+        .ajustarCategoria(tx['id'] as int, escolhida);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(erro ?? 'Categoria atualizada')),
+    );
+  }
+
   Future<void> _abrirFiltros() async {
     final state = ref.read(transacoesProvider);
     final categorias = ref.read(categoriasProvider).valueOrNull ?? [];
@@ -198,7 +249,11 @@ class _TransacoesScreenState extends ConsumerState<TransacoesScreen> {
 
                 final tx =
                     state.transacoes[i - offset] as Map<String, dynamic>;
-                return _TransacaoTile(tx: tx, brlFormat: _brlFormat);
+                return _TransacaoTile(
+                  tx: tx,
+                  brlFormat: _brlFormat,
+                  onTap: () => _corrigirCategoria(tx),
+                );
               },
             ),
           );
@@ -211,8 +266,9 @@ class _TransacoesScreenState extends ConsumerState<TransacoesScreen> {
 // ─── Tile de transação ───────────────────────────────────────────────────────
 
 class _TransacaoTile extends StatelessWidget {
-  const _TransacaoTile({required this.tx, required this.brlFormat});
+  const _TransacaoTile({required this.tx, required this.brlFormat, this.onTap});
 
+  final VoidCallback? onTap;
   final Map<String, dynamic> tx;
   final NumberFormat brlFormat;
 
@@ -233,6 +289,7 @@ class _TransacaoTile extends StatelessWidget {
     } catch (_) {}
 
     return ListTile(
+      onTap: onTap,
       leading: CircleAvatar(
         backgroundColor: isCredito
             ? Colors.green.withAlpha(26)

@@ -105,4 +105,21 @@ class TransacoesRepository {
     }
     return mapa.values.toList();
   }
+
+  Future<void> ajustarCategoria(int transacaoId, int categoriaId) async {
+    await _client.dio.patch('/transacoes/$transacaoId/categoria', data: {'categoriaId': categoriaId});
+  }
+
+  Future<List<Map<String, dynamic>>> listarRegrasCategorizacao() async {
+    final res = await _client.dio.get('/regras-categorizacao');
+    return List<Map<String, dynamic>>.from(res.data as List);
+  }
+
+  Future<void> criarRegraCategorizacao(String palavra, int categoriaId) async {
+    await _client.dio.post('/regras-categorizacao', data: {'palavra': palavra, 'categoriaId': categoriaId});
+  }
+
+  Future<void> excluirRegraCategorizacao(int id) async {
+    await _client.dio.delete('/regras-categorizacao/$id');
+  }
 }

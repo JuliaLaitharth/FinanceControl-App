@@ -193,6 +193,17 @@ class TransacoesNotifier extends StateNotifier<TransacoesState> {
     await carregar(forceApi: true);
   }
 
+  /// Corrige a categoria de uma transação e recarrega a lista.
+  Future<String?> ajustarCategoria(int transacaoId, int categoriaId) async {
+    try {
+      await _repo.ajustarCategoria(transacaoId, categoriaId);
+      await carregar(forceApi: true);
+      return null;
+    } catch (e) {
+      return _parseError(e);
+    }
+  }
+
   Future<void> proximaPagina() async {
     if (state.pagina >= state.totalPaginas || state.isLoading) return;
     final f = state.filtros.copyWith(page: state.pagina + 1);

@@ -53,10 +53,10 @@ O aparelho não alcança o `localhost` do computador, e o iOS bloqueia `http://`
 | Aba | Conteúdo |
 |---|---|
 | Início | Saldo total, saldo por instituição, acesso às contas conectadas |
-| Transações | Extrato com filtros, paginação e cache local |
+| Transações | Extrato com filtros (período, categoria, tipo, banco, valor), paginação, cache local e correção de categoria (toque na transação) |
 | Relatórios | Despesas por categoria (este mês, mês anterior, 3 meses) e receitas × despesas por mês |
 | Alertas | Notificações e acesso às regras de alerta |
-| Perfil | Nome, senha, biometria, sair e excluir conta |
+| Perfil | Nome, senha, biometria, regras de categorização, sair e excluir conta |
 
 Os dados de cada aba são recarregados ao abri-la.
 
@@ -86,4 +86,4 @@ lib/
 
 ## Ainda não implementado
 
-Push no aparelho (`firebase_messaging`), tela de redefinição de senha, correção manual de categoria, regras de categorização e revogação do vínculo da Alexa.
+Push no aparelho (`firebase_messaging`), tela de redefinição de senha e revogação do vínculo da Alexa.

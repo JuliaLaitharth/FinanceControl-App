@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../transactions/presentation/screens/regras_categorizacao_screen.dart';
 import '../providers/auth_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -58,6 +59,18 @@ class ProfileScreen extends ConsumerWidget {
             title: const Text('Alterar senha'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _alterarSenha(context, ref),
+          ),
+
+          // Regras de categorização
+          ListTile(
+            leading: const Icon(Icons.rule_outlined),
+            title: const Text('Regras de categorização'),
+            subtitle: const Text('Palavra na descrição → categoria'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const RegrasCategorizacaoScreen()),
+            ),
           ),
 
           // Biometria
