@@ -83,6 +83,29 @@ void main() {
     });
   });
 
+  group('mensagens de erro do login', () {
+    test('sem resposta do servidor: avisa que não conseguiu conectar', () async {
+      final repo = FakeAuthRepository()..loginError = erroDio();
+      final n = _notifier(repo);
+
+      await n.login(email: 'a@b.com', senha: 'x');
+
+      expect(n.state.status, isNot(AuthStatus.authenticated));
+      expect(n.state.errorMessage, contains('conectar ao servidor'));
+      n.dispose();
+    });
+
+    test('servidor responde 401: não diz que a conexão falhou', () async {
+      final repo = FakeAuthRepository()..loginError = erroDio(status: 401);
+      final n = _notifier(repo);
+
+      await n.login(email: 'a@b.com', senha: 'x');
+
+      expect(n.state.errorMessage, isNot(contains('conectar ao servidor')));
+      n.dispose();
+    });
+  });
+
   group('bloqueio por biometria', () {
     test('biometria ativa no servidor: abre bloqueado', () async {
       final bio = FakeBiometricService();

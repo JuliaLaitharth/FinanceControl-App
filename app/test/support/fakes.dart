@@ -13,6 +13,7 @@ class FakeAuthRepository extends AuthRepository {
   final bool tokens;
   final Map<String, dynamic>? meResult;
   final DioException? meError;
+  DioException? loginError;
   int meCalls = 0;
   int encerrarCalls = 0;
   int logoutCalls = 0;
@@ -30,6 +31,12 @@ class FakeAuthRepository extends AuthRepository {
 
   @override
   Future<void> encerrarLocal() async => encerrarCalls++;
+
+  @override
+  Future<Map<String, dynamic>> login({required String email, required String senha}) async {
+    if (loginError != null) throw loginError!;
+    return {'usuario': {'email': email}};
+  }
 
   @override
   Future<void> logout() async => logoutCalls++;

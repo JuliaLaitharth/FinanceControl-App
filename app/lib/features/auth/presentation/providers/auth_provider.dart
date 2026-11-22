@@ -248,6 +248,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   String _parseError(Object e) {
+    // Sem resposta do servidor (sem internet, endereço errado, servidor fora do ar):
+    // dizer isso evita confundir com "e-mail ou senha incorretos".
+    if (e is DioException && e.response == null) {
+      return 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
+    }
     // Extrai mensagem de erro da API (DioException → response.data.message)
     try {
       final dynamic data = (e as dynamic).response?.data; // ignore: avoid_dynamic_calls
