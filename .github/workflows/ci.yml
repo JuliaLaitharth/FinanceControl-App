@@ -87,7 +87,9 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.x"
+          # Mesma versão usada no desenvolvimento. As dependências exigem Dart >= 3.13 /
+          # Flutter >= 3.47 (ver sdks no pubspec.lock); versões mais antigas não resolvem.
+          flutter-version: "3.47.5"
           channel: stable
           cache: true
 
