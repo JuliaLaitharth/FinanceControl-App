@@ -35,7 +35,7 @@
 
 **Decisão original:** criptografar `itemIdPluggy` e também `access_token`/`refresh_token` do `VinculoAlexa`, com `EncryptionService` e a chave em `ENCRYPTION_KEY`.
 
-**Situação atual: parcial.** Só o `itemIdPluggy` é criptografado (e um hash SHA-256 dele permite achar o usuário no webhook e impedir conexão duplicada). **Os tokens da Alexa ficam em texto no banco**: pendência de segurança registrada em [COMPLIANCE.md](COMPLIANCE.md).
+**Situação atual:** o `itemIdPluggy` é criptografado (AES-256-GCM) e um hash SHA-256 dele permite achar o usuário no webhook e impedir conexão duplicada. Os tokens da Alexa **não são criptografados: são guardados só como hash SHA-256** (a migration `20261122000002` converteu os já existentes), porque o backend só precisa compará-los, nunca lê-los de volta; a busca pelo `refresh_token` é feita pelo hash.
 
 ---
 

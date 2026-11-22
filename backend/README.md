@@ -80,7 +80,7 @@ O job `pluggy-sync` (BullMQ, 3 tentativas com espera exponencial) é criado quan
 docker build -t financecontrol-api .
 ```
 
-A imagem aplica as migrations ao iniciar e depende de `DATABASE_URL`, `REDIS_URL` (ou `REDIS_HOST`) e das demais variáveis obrigatórias. Executa como `root` (melhoria pendente).
+A imagem aplica as migrations ao iniciar e depende de `DATABASE_URL`, `REDIS_URL` (ou `REDIS_HOST`) e das demais variáveis obrigatórias. Executa como o usuário sem privilégios `node`.
 
 ## Observação
 

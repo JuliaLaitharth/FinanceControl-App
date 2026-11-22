@@ -2,7 +2,7 @@ import { HttpException, HttpStatus, Injectable, Logger, UnauthorizedException } 
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   AlexaOauthConfig,
@@ -17,6 +17,9 @@ const CODIGO_MINUTOS = 5;
 // Mesmas regras do login do app (HU01): 5 falhas → bloqueio de 15 minutos.
 const MAX_TENTATIVAS = 5;
 const BLOQUEIO_MINUTOS = 15;
+
+// Os tokens da Alexa ficam no banco só como hash: um vazamento do banco não entrega tokens usáveis.
+const sha256 = (valor: string) => createHash('sha256').update(valor).digest('hex');
 
 const emMinutos = (min: number) => new Date(Date.now() + min * 60_000);
 const emDias = (dias: number) => new Date(Date.now() + dias * 86_400_000);
@@ -119,8 +122,8 @@ export class OauthService {
     await this.prisma.vinculoAlexa.create({
       data: {
         usuarioId: registro.usuarioId,
-        accessToken,
-        refreshToken,
+        accessToken: sha256(accessToken),
+        refreshToken: sha256(refreshToken),
         expiraEm,
       },
     });
@@ -135,7 +138,7 @@ export class OauthService {
 
   async refresharToken(refreshToken: string) {
     const vinculo = await this.prisma.vinculoAlexa.findFirst({
-      where: { refreshToken, ativo: true, expiraEm: { gt: new Date() } },
+      where: { refreshToken: sha256(refreshToken), ativo: true, expiraEm: { gt: new Date() } },
     });
     if (!vinculo) throw new UnauthorizedException('refresh_token inválido');
 
@@ -147,7 +150,7 @@ export class OauthService {
 
     await this.prisma.vinculoAlexa.update({
       where: { id: vinculo.id },
-      data: { accessToken, expiraEm },
+      data: { accessToken: sha256(accessToken), expiraEm },
     });
 
     return {

@@ -28,6 +28,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY scripts/start.sh ./scripts/start.sh
 
+# Executa sem privilégios (usuário `node` da imagem). Os arquivos ficam como root, só de leitura.
+USER node
+
 EXPOSE 3000
 
 # Aguarda o banco, roda as migrations e então inicia o servidor

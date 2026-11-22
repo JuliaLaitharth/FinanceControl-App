@@ -1,6 +1,8 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AlexaModule } from './alexa/alexa.module';
@@ -32,6 +34,12 @@ import { redisConnection } from './redis/redis.config';
       }),
       inject: [ConfigService],
     }),
+    // Limite geral por IP (o IP real vem do `trust proxy`); rotas sensíveis têm limite próprio.
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 120 }],
+      // O webhook do Pluggy é autenticado por segredo e não deve ser limitado por IP.
+      skipIf: (ctx) => ctx.getClass().name === 'WebhookController',
+    }),
     PrismaModule,
     EncryptionModule,
     AuditModule,
@@ -52,6 +60,6 @@ import { redisConnection } from './redis/redis.config';
     WorkerModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

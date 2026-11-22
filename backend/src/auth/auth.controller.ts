@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Ip, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { LgpdService } from '../lgpd/lgpd.service';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
@@ -57,11 +58,13 @@ export class AuthController {
     private readonly lgpd: LgpdService,
   ) {}
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('register')
   register(@Body() dto: RegisterDto, @Ip() ip: string) {
     return this.auth.register(dto, ip);
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)
   login(@Body() dto: LoginDto, @Ip() ip: string) {
@@ -74,12 +77,14 @@ export class AuthController {
     return this.auth.refresh(dto);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('forgot-password')
   @HttpCode(200)
   forgotPassword(@Body() dto: ForgotPasswordDto, @Ip() ip: string) {
     return this.auth.forgotPassword(dto, ip);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('reset-password')
   @HttpCode(200)
   resetPassword(@Body() dto: ResetPasswordDto, @Ip() ip: string) {

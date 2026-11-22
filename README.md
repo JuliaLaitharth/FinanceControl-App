@@ -291,7 +291,7 @@ Checklist completo, com o que está implementado e o que ainda é pendência, em
 - Exclusão total: `DELETE /auth/conta` revoga os itens no Pluggy e apaga os dados em cascata.
 - Criptografia em repouso do `itemId` do Pluggy (AES-256-GCM); senhas com bcrypt; tokens de recuperação guardados só como hash.
 - Auditoria das ações sensíveis (`LogAuditoria`, com IP e horário).
-- Tokens da Alexa ficam em texto no banco (pendência registrada).
+- Tokens da Alexa guardados só como hash SHA-256; `helmet`, limite de requisições por IP e `trust proxy`; container sem `root`.
 
 ---
 

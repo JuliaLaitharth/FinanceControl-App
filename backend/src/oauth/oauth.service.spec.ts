@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { JwtService } from '@nestjs/jwt';
 import { HttpException, UnauthorizedException } from '@nestjs/common';
@@ -188,6 +189,23 @@ describe('OauthService', () => {
 
       expect(result.access_token).toBe('jwt-access-token');
       expect(result.token_type).toBe('Bearer');
+    });
+
+    it('busca e grava os tokens apenas como hash', async () => {
+      prisma.vinculoAlexa.findFirst.mockResolvedValue(vinculoFake() as never);
+      prisma.vinculoAlexa.update.mockResolvedValue(vinculoFake() as never);
+
+      await service.refresharToken('refresh-token-valid');
+
+      const hash = (v: string) => createHash('sha256').update(v).digest('hex');
+      expect(prisma.vinculoAlexa.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ refreshToken: hash('refresh-token-valid') }),
+        }),
+      );
+      expect(prisma.vinculoAlexa.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ accessToken: hash('jwt-access-token') }) }),
+      );
     });
 
     it('lança UnauthorizedException para refresh_token inválido', async () => {
