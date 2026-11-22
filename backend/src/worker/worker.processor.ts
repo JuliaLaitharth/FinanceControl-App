@@ -70,7 +70,9 @@ export class SyncWorkerProcessor extends WorkerHost {
 
     for (const regra of regras) {
       if (regra.tipoEvento === 'SALDO_MINIMO') {
-        await this.avaliarSaldoMinimo(usuarioId, regra, contas, usuario?.fcmToken ?? null);
+        // Regra nova: só a conta escolhida. Regra antiga (sem conta): todas as contas.
+        const alvo = regra.contaId ? contas.filter((c) => c.id === regra.contaId) : contas;
+        await this.avaliarSaldoMinimo(usuarioId, regra, alvo, usuario?.fcmToken ?? null);
         continue;
       }
 
@@ -106,7 +108,13 @@ export class SyncWorkerProcessor extends WorkerHost {
 
   private async regraCorresponde(
     regra: { tipoEvento: string; valorLimite: unknown; categoriaId: number | null },
-    tx: { tipo: string; valor: unknown; categoriaId: number | null },
+    tx: {
+      tipo: string;
+      valor: unknown;
+      categoriaId: number | null;
+      descricao?: string;
+      metodoPagamento?: string | null;
+    },
   ): Promise<boolean> {
     const limite = Number(regra.valorLimite ?? 0);
     const valor = Number(tx.valor ?? 0);
@@ -116,6 +124,10 @@ export class SyncWorkerProcessor extends WorkerHost {
         return tx.tipo === 'DEBIT' && valor > limite;
       case 'DESPESA_CATEGORIA':
         return tx.tipo === 'DEBIT' && tx.categoriaId === regra.categoriaId && valor > limite;
+      case 'PIX_RECEBIDO':
+        return ehPix(tx) && tx.tipo === 'CREDIT' && valor >= limite;
+      case 'PIX_ENVIADO':
+        return ehPix(tx) && tx.tipo === 'DEBIT' && valor >= limite;
       default:
         return false;
     }
@@ -170,8 +182,17 @@ export class SyncWorkerProcessor extends WorkerHost {
         return `Transação de R$ ${valor}: "${tx.descricao}" acima do limite de R$ ${Number(regra.valorLimite).toFixed(2)}`;
       case 'DESPESA_CATEGORIA':
         return `Gasto de R$ ${valor} em "${tx.descricao}" acima do limite da categoria`;
+      case 'PIX_RECEBIDO':
+        return `Pix recebido: R$ ${valor} — "${tx.descricao}"`;
+      case 'PIX_ENVIADO':
+        return `Pix enviado: R$ ${valor} — "${tx.descricao}"`;
       default:
         return `Alerta: R$ ${valor} — "${tx.descricao}"`;
     }
   }
+}
+
+/** Pix: o Pluggy informa o método de pagamento; na falta dele, a descrição costuma citar "pix". */
+export function ehPix(tx: { descricao?: string; metodoPagamento?: string | null }): boolean {
+  return (tx.metodoPagamento ?? '').toUpperCase() === 'PIX' || /\bpix\b/i.test(tx.descricao ?? '');
 }

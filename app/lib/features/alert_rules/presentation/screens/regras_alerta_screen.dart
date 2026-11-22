@@ -145,6 +145,8 @@ class _RegrasAlertaScreenState extends ConsumerState<RegrasAlertaScreen> {
                       TipoRegra.saldoMinimo => Icons.account_balance_wallet_outlined,
                       TipoRegra.transacaoGrande => Icons.payments_outlined,
                       TipoRegra.despesaCategoria => Icons.category_outlined,
+                      TipoRegra.pixRecebido => Icons.arrow_downward,
+                      TipoRegra.pixEnviado => Icons.arrow_upward,
                     },
                     color: ativa ? cs.primary : cs.outline,
                   ),

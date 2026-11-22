@@ -4,12 +4,16 @@ import 'package:intl/intl.dart';
 enum TipoRegra {
   saldoMinimo('SALDO_MINIMO', 'Saldo mínimo', 'Avisa quando o saldo de uma conta ficar abaixo do limite.'),
   transacaoGrande('TRANSACAO_GRANDE', 'Transação grande', 'Avisa quando uma despesa passar do limite.'),
-  despesaCategoria('DESPESA_CATEGORIA', 'Despesa por categoria', 'Avisa quando uma despesa de uma categoria passar do limite.');
+  despesaCategoria('DESPESA_CATEGORIA', 'Despesa por categoria', 'Avisa quando uma despesa de uma categoria passar do limite.'),
+  pixRecebido('PIX_RECEBIDO', 'Pix recebido', 'Avisa quando você receber um Pix (opcionalmente a partir de um valor).'),
+  pixEnviado('PIX_ENVIADO', 'Pix enviado', 'Avisa quando você enviar um Pix (opcionalmente a partir de um valor).');
 
   const TipoRegra(this.codigo, this.titulo, this.descricao);
   final String codigo;
   final String titulo;
   final String descricao;
+
+  bool get ehPix => this == pixRecebido || this == pixEnviado;
 
   static TipoRegra de(String? codigo) => TipoRegra.values.firstWhere(
         (t) => t.codigo == codigo,
@@ -55,11 +59,17 @@ String descreverRegra(Map<String, dynamic> regra) {
   final valor = limite == null ? '—' : _brl.format(limite);
   switch (TipoRegra.de(regra['tipoEvento'] as String?)) {
     case TipoRegra.saldoMinimo:
-      return 'Saldo abaixo de $valor';
+      final conta = regra['conta'] as Map?;
+      final sufixo = conta == null ? '' : ' (conta ${conta['numeroMascarado'] ?? conta['id']})';
+      return 'Saldo abaixo de $valor$sufixo';
     case TipoRegra.transacaoGrande:
       return 'Transação acima de $valor';
     case TipoRegra.despesaCategoria:
       final cat = (regra['categoria'] as Map?)?['nome'] ?? 'categoria';
       return 'Gasto em $cat acima de $valor';
+    case TipoRegra.pixRecebido:
+      return limite == null ? 'Qualquer Pix recebido' : 'Pix recebido a partir de $valor';
+    case TipoRegra.pixEnviado:
+      return limite == null ? 'Qualquer Pix enviado' : 'Pix enviado a partir de $valor';
   }
 }

@@ -50,7 +50,7 @@ Legenda: ✅ funcionando e verificado · ⚠️ parcial ou pendente.
 | RF03 | Saldo consolidado e cache local (SQLite) | ✅ |
 | RF04 | Transações com paginação e filtros (período, categoria, tipo, conta, banco e valor) e sincronização | ✅ |
 | RF05 | Categorização automática por palavras-chave, regras do usuário e correção manual no app | ✅ |
-| RF06 | Regras de alerta (saldo mínimo, transação grande, despesa por categoria; canais Push, Alexa ou ambos) | ✅ — alerta do tipo Pix e "um alerta de saldo mínimo por conta" ⚠️ pendentes |
+| RF06 | Regras de alerta (saldo mínimo por conta, transação grande, despesa por categoria, Pix recebido/enviado; canais Push, Alexa ou ambos) | ✅ |
 | RF07 | Central de notificações no app e push (FCM) | ✅ central de notificações — **push no aparelho ⚠️**: o backend envia, mas o app ainda não integra o `firebase_messaging` |
 | RF08 | Alexa: vínculo de conta (OAuth 2.0), saldo e gastos por voz | ✅ — alertas por voz ⚠️ configuração em andamento (ver [integrações](docs/INTEGRACOES.md#alertas-proativos-por-voz)) |
 | RF09 | Relatórios: despesas por categoria (por período) e receitas × despesas por mês | ✅ |
@@ -299,7 +299,6 @@ Checklist completo, com o que está implementado e o que ainda é pendência, em
 
 - Push no aparelho (FCM) e envio real de e-mail de recuperação de senha.
 - Telas: revogação do vínculo da Alexa.
-- Alertas: tipo Pix e um único alerta de saldo mínimo por conta (hoje, uma vez a cada 24 h por regra).
 - Alertas por voz: o evento `MessageAlert` apenas avisa que há uma mensagem, sem ler o texto.
 - Criptografar os tokens da Alexa guardados no banco.
 - Pagamentos de fatura do cartão (valor positivo na conta do cartão) entram como receita nos relatórios.

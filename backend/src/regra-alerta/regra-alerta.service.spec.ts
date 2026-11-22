@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { createPrismaMock } from '../test-utils/prisma.mock';
 import { CreateRegraAlertaDto } from './dto/create-regra-alerta.dto';
@@ -68,13 +68,55 @@ describe('RegraAlertaService', () => {
       prisma.regraAlerta.create.mockResolvedValue(regraFake() as never);
 
       await service.criar(
-        { tipoEvento: 'SALDO_MINIMO', valorLimite: 100, categoriaId: 7, canal: 'ALEXA' },
+        { tipoEvento: 'TRANSACAO_GRANDE', valorLimite: 100, categoriaId: 7, canal: 'ALEXA' },
         42,
       );
 
       expect(prisma.regraAlerta.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ categoriaId: null }) }),
       );
+    });
+  });
+
+  describe('criar() — saldo mínimo por conta e Pix', () => {
+    it('cria saldo mínimo para uma conta do usuário', async () => {
+      prisma.contaBancaria.findFirst.mockResolvedValue({ id: 5 } as never);
+      prisma.regraAlerta.findFirst.mockResolvedValue(null as never);
+      prisma.regraAlerta.create.mockResolvedValue(regraFake() as never);
+
+      await service.criar({ tipoEvento: 'SALDO_MINIMO', valorLimite: 100, contaId: 5, canal: 'PUSH' }, 42);
+
+      expect(prisma.regraAlerta.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ contaId: 5 }) }),
+      );
+    });
+
+    it('exige a conta no saldo mínimo', async () => {
+      await expect(
+        service.criar({ tipoEvento: 'SALDO_MINIMO', valorLimite: 100, canal: 'PUSH' }, 42),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('impede conta de outro usuário', async () => {
+      prisma.contaBancaria.findFirst.mockResolvedValue(null as never);
+      await expect(
+        service.criar({ tipoEvento: 'SALDO_MINIMO', valorLimite: 100, contaId: 9, canal: 'PUSH' }, 42),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('impede segundo alerta de saldo mínimo na mesma conta', async () => {
+      prisma.contaBancaria.findFirst.mockResolvedValue({ id: 5 } as never);
+      prisma.regraAlerta.findFirst.mockResolvedValue({ id: 3 } as never);
+      await expect(
+        service.criar({ tipoEvento: 'SALDO_MINIMO', valorLimite: 100, contaId: 5, canal: 'PUSH' }, 42),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.regraAlerta.create).not.toHaveBeenCalled();
+    });
+
+    it('aceita alerta de Pix sem valor limite', async () => {
+      prisma.regraAlerta.create.mockResolvedValue(regraFake({ tipoEvento: 'PIX_RECEBIDO' }) as never);
+      await service.criar({ tipoEvento: 'PIX_RECEBIDO', canal: 'PUSH' }, 42);
+      expect(prisma.regraAlerta.create).toHaveBeenCalled();
     });
   });
 

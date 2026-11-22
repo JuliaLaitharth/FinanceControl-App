@@ -184,9 +184,10 @@ Cada sincronização avalia as regras ativas do usuário **sobre as transações
 |---|---|
 | `TRANSACAO_GRANDE` | uma despesa nova passa do limite |
 | `DESPESA_CATEGORIA` | uma despesa nova da categoria escolhida passa do limite |
-| `SALDO_MINIMO` | o saldo de uma conta (exceto cartão de crédito) fica abaixo do limite; no máximo um aviso por regra a cada 24 h |
+| `SALDO_MINIMO` | o saldo da conta escolhida (exceto cartão de crédito) fica abaixo do limite; no máximo um alerta por conta e um aviso por regra a cada 24 h |
+| `PIX_RECEBIDO` / `PIX_ENVIADO` | entra/sai um Pix novo (detectado pelo método de pagamento do Pluggy ou por "pix" na descrição), opcionalmente a partir de um valor |
 
-- O limite precisa ser maior que zero; a categoria é obrigatória em `DESPESA_CATEGORIA`.
+- O limite precisa ser maior que zero (opcional nos alertas de Pix); a categoria é obrigatória em `DESPESA_CATEGORIA` e a conta em `SALDO_MINIMO`.
 - Canais: `PUSH` (FCM), `ALEXA` (evento proativo) ou `AMBOS`. Cada canal só envia o que escolheu.
 - Há no máximo uma notificação por regra e transação. A notificação é sempre gravada e aparece na central do app; o status vira `ENVIADO` quando o push é entregue.
 

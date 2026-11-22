@@ -110,6 +110,7 @@ model ContaBancaria {
 
   consentimento Consentimento @relation(fields: [consentimentoId], references: [id], onDelete: Cascade)
   transacoes    Transacao[]
+  regrasAlerta  RegraAlerta[]
 
   @@map("conta_bancaria")
 }
@@ -157,14 +158,17 @@ model RegraAlerta {
   operador    String?
   valorLimite Decimal? @map("valor_limite") @db.Decimal(15, 2)
   categoriaId Int?     @map("categoria_id")
+  contaId     Int?     @map("conta_id")
   canal       String
   ativa       Boolean  @default(true)
   dataCriacao DateTime @default(now()) @map("data_criacao")
 
   usuario      Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   categoria    Categoria?    @relation(fields: [categoriaId], references: [id])
+  conta        ContaBancaria? @relation(fields: [contaId], references: [id], onDelete: Cascade)
   notificacoes Notificacao[]
 
+  @@index([usuarioId, contaId])
   @@map("regra_alerta")
 }
 

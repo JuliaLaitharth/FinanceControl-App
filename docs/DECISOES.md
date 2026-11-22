@@ -19,7 +19,7 @@
 
 **Decisão original:** impedir mais de um alerta de saldo mínimo **por conta**, validando no serviço (o modelo `RegraAlerta` não tem `contaId`).
 
-**Situação atual: não implementado.** A regra de saldo mínimo é por usuário: a notificação é limitada a **uma a cada 24 h por regra**, avaliando todas as contas que não sejam cartão. Para cumprir o requisito é preciso adicionar `contaId` à `RegraAlerta` e à notificação (migration). Registrado como pendência.
+**Situação atual: implementado.** `RegraAlerta` tem `contaId` (migration `20261122000001`); o serviço exige uma conta ativa do usuário no saldo mínimo e responde `409` se já houver alerta para a conta. O aviso continua limitado a **um a cada 24 h por regra**. Regras antigas (sem conta) seguem avaliando todas as contas que não sejam cartão até serem editadas.
 
 ---
 

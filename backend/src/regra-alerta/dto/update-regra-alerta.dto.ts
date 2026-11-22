@@ -26,6 +26,11 @@ export class UpdateRegraAlertaDto {
   categoriaId?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  contaId?: number;
+
+  @IsOptional()
   @IsIn(CANAIS)
   canal?: string;
 

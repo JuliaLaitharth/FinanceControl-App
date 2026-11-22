@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../accounts/data/accounts_repository.dart';
 import '../../../transactions/presentation/providers/transacoes_provider.dart';
 import '../providers/regras_alerta_provider.dart';
 import '../regra_alerta_modelo.dart';
@@ -22,6 +23,8 @@ class _RegraAlertaFormScreenState extends ConsumerState<RegraAlertaFormScreen> {
   late TipoRegra _tipo;
   late CanalRegra _canal;
   int? _categoriaId;
+  int? _contaId;
+  List<Map<String, dynamic>> _contas = [];
   bool _salvando = false;
 
   bool get _editando => widget.regra != null;
@@ -33,10 +36,31 @@ class _RegraAlertaFormScreenState extends ConsumerState<RegraAlertaFormScreen> {
     _tipo = TipoRegra.de(r?['tipoEvento'] as String?);
     _canal = CanalRegra.de(r?['canal'] as String?);
     _categoriaId = r?['categoriaId'] as int?;
+    _contaId = r?['contaId'] as int?;
+    _carregarContas();
     final limite = num.tryParse('${r?['valorLimite'] ?? ''}');
     _valorCtrl = TextEditingController(
       text: limite == null ? '' : limite.toStringAsFixed(2).replaceAll('.', ','),
     );
+  }
+
+  Future<void> _carregarContas() async {
+    try {
+      final todas = await ref.read(accountsRepositoryProvider).listarContas();
+      if (!mounted) return;
+      setState(() {
+        _contas = todas
+            .cast<Map<String, dynamic>>()
+            .where((c) => c['tipo'] != 'CREDIT') // cartão tem saldo negativo por natureza
+            .toList();
+      });
+    } catch (_) {}
+  }
+
+  String _rotuloConta(Map<String, dynamic> c) {
+    final banco = (c['consentimento']?['instituicao']?['nome'] ?? 'Conta') as String;
+    final num = c['numeroMascarado'] ?? c['id'];
+    return '$banco · $num';
   }
 
   @override
@@ -54,6 +78,7 @@ class _RegraAlertaFormScreenState extends ConsumerState<RegraAlertaFormScreen> {
       dados: {
         'tipoEvento': _tipo.codigo,
         'valorLimite': parseValorBr(_valorCtrl.text),
+        if (_tipo == TipoRegra.saldoMinimo) 'contaId': _contaId,
         'canal': _canal.codigo,
         if (_tipo == TipoRegra.despesaCategoria) 'categoriaId': _categoriaId,
       },
@@ -104,15 +129,35 @@ class _RegraAlertaFormScreenState extends ConsumerState<RegraAlertaFormScreen> {
               controller: _valorCtrl,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-              decoration: const InputDecoration(
-                labelText: 'Valor limite',
+              decoration: InputDecoration(
+                labelText: _tipo.ehPix ? 'Valor mínimo (opcional)' : 'Valor limite',
                 prefixText: 'R\$ ',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
-              validator: (v) =>
-                  parseValorBr(v ?? '') == null ? 'Informe um valor maior que zero' : null,
+              validator: (v) {
+                if (_tipo.ehPix && (v ?? '').trim().isEmpty) return null;
+                return parseValorBr(v ?? '') == null ? 'Informe um valor maior que zero' : null;
+              },
             ),
             const SizedBox(height: 16),
+
+            if (_tipo == TipoRegra.saldoMinimo) ...[
+              DropdownButtonFormField<int>(
+                initialValue: _contas.any((c) => c['id'] == _contaId) ? _contaId : null,
+                decoration: const InputDecoration(
+                  labelText: 'Conta',
+                  helperText: 'Um alerta de saldo mínimo por conta.',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  for (final c in _contas)
+                    DropdownMenuItem(value: c['id'] as int, child: Text(_rotuloConta(c))),
+                ],
+                onChanged: (id) => setState(() => _contaId = id),
+                validator: (id) => id == null ? 'Escolha a conta' : null,
+              ),
+              const SizedBox(height: 16),
+            ],
 
             if (_tipo == TipoRegra.despesaCategoria) ...[
               categoriasAsync.when(
