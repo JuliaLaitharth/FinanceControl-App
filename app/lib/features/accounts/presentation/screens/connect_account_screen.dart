@@ -4,6 +4,7 @@ import 'package:flutter_pluggy_connect/flutter_pluggy_connect.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/accounts_provider.dart';
+import 'privacidade_screen.dart';
 
 /// Em debug, o widget lista também os conectores de sandbox (ex.: "Pluggy Bank").
 /// Em release fica desligado; force com --dart-define=PLUGGY_SANDBOX=true.
@@ -26,10 +27,11 @@ class _ConnectAccountScreenState extends ConsumerState<ConnectAccountScreen> {
   String? _errorMsg;
   bool _registrando = false;
   bool _finalizado = false;
+  // Consentimento explícito (LGPD): o widget do banco só abre depois do aceite.
+  bool _consentiu = false;
 
-  @override
-  void initState() {
-    super.initState();
+  void _aceitar() {
+    setState(() => _consentiu = true);
     _iniciar();
   }
 
@@ -122,7 +124,30 @@ class _ConnectAccountScreenState extends ConsumerState<ConnectAccountScreen> {
       ),
       body: Stack(
         children: [
-          if (_errorMsg != null)
+          if (!_consentiu)
+            SafeArea(
+              child: Column(
+                children: [
+                  const Expanded(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.all(20),
+                      child: PrivacidadeConteudo(),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _aceitar,
+                        child: const Text('Concordo e continuar'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (_errorMsg != null)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),

@@ -86,4 +86,4 @@ lib/
 
 ## Ainda não implementado
 
-Push no aparelho (`firebase_messaging`).
+Nada além da configuração do Firebase para ativar o push (`--dart-define=FCM_ENABLED=true`; veja docs/INTEGRACOES.md).

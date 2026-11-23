@@ -51,7 +51,7 @@ Legenda: ✅ funcionando e verificado · ⚠️ parcial ou pendente.
 | RF04 | Transações com paginação e filtros (período, categoria, tipo, conta, banco e valor) e sincronização | ✅ |
 | RF05 | Categorização automática por palavras-chave, regras do usuário e correção manual no app | ✅ |
 | RF06 | Regras de alerta (saldo mínimo por conta, transação grande, despesa por categoria, Pix recebido/enviado; canais Push, Alexa ou ambos) | ✅ |
-| RF07 | Central de notificações no app e push (FCM) | ✅ central de notificações — **push no aparelho ⚠️**: o backend envia, mas o app ainda não integra o `firebase_messaging` |
+| RF07 | Central de notificações no app e push (FCM) | ✅ central de notificações; push: código pronto (backend e app), **ativação depende da configuração do Firebase** ([guia](docs/INTEGRACOES.md#push-fcm)); iOS exige conta Apple Developer paga |
 | RF08 | Alexa: vínculo de conta (OAuth 2.0), saldo e gastos por voz | ✅ — alertas por voz ⚠️ configuração em andamento (ver [integrações](docs/INTEGRACOES.md#alertas-proativos-por-voz)) |
 | RF09 | Relatórios: despesas por categoria (por período) e receitas × despesas por mês | ✅ |
 | RF10 | LGPD: revogação de consentimento e exclusão total da conta | ✅ |
@@ -233,7 +233,7 @@ Todas as rotas `JWT` exigem `Authorization: Bearer <accessToken>`. Um token emit
 | GET | `/contas` | JWT | Contas bancárias |
 | GET | `/contas/saldo` | JWT | Saldo consolidado |
 | GET | `/transacoes` | JWT | Extrato (`page`, `limit`, `de`, `ate`, `categoriaId`, `tipo`, `contaId`) |
-| POST | `/transacoes/sincronizar` | JWT | Sincronização manual |
+| POST | `/transacoes/sincronizar` | JWT | Sincronização manual: enfileira o mesmo job do webhook (busca transações e avalia os alertas); responde `{ "enfileirada": true }` |
 | GET | `/transacoes/resumo-categorias` | JWT | Despesas por categoria (`dataInicio`, `dataFim`; sem datas, o mês atual) |
 | GET | `/transacoes/resumo-mensal` | JWT | Receitas e despesas por mês (`meses`) |
 | PATCH | `/transacoes/:id/categoria` | JWT | Ajustar categoria manualmente |
@@ -299,7 +299,7 @@ Checklist completo, com o que está implementado e o que ainda é pendência, em
 
 ## Limitações conhecidas e próximos passos
 
-- Push no aparelho (FCM).
+- Push no aparelho: ativar configurando o Firebase (guia em docs/INTEGRACOES.md); no iOS exige conta Apple Developer paga.
 - Alertas por voz: o evento `MessageAlert` apenas avisa que há uma mensagem, sem ler o texto.
 - Criptografar os tokens da Alexa guardados no banco.
 - Pagamentos de fatura do cartão (valor positivo na conta do cartão) entram como receita nos relatórios.

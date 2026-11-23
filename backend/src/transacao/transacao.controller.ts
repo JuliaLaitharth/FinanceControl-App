@@ -1,3 +1,4 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
   Body,
   Controller,
@@ -12,6 +13,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { Queue } from 'bullmq';
 import { IsInt, Min } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 
@@ -21,12 +23,16 @@ class AjustarCategoriaDto {
   categoriaId!: number;
 }
 import { FiltroTransacaoDto } from './dto/filtro-transacao.dto.js';
+import { PLUGGY_SYNC_QUEUE, PluggySyncJobData } from '../worker/worker.processor.js';
 import { TransacaoService } from './transacao.service.js';
 
 @Controller('transacoes')
 @UseGuards(JwtAuthGuard)
 export class TransacaoController {
-  constructor(private readonly service: TransacaoService) {}
+  constructor(
+    private readonly service: TransacaoService,
+    @InjectQueue(PLUGGY_SYNC_QUEUE) private readonly syncQueue: Queue<PluggySyncJobData>,
+  ) {}
 
   @Get()
   listar(
@@ -65,7 +71,16 @@ export class TransacaoController {
 
   @Post('sincronizar')
   @HttpCode(HttpStatus.OK)
-  sincronizar(@Request() req: { user: { sub: number }; ip: string }) {
-    return this.service.sincronizar(req.user.sub, req.ip);
+  /**
+   * Pede uma sincronização pelo mesmo caminho do webhook: o worker busca as transações novas e
+   * avalia as regras de alerta (push e Alexa). Responde na hora; o app recarrega em seguida.
+   */
+  async sincronizar(@Request() req: { user: { sub: number } }) {
+    await this.syncQueue.add(
+      'sync',
+      { usuarioId: req.user.sub, event: 'manual' },
+      { attempts: 3, backoff: { type: 'exponential', delay: 5_000 }, removeOnComplete: 100, removeOnFail: 50 },
+    );
+    return { enfileirada: true };
   }
 }

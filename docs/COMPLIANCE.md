@@ -17,7 +17,7 @@ Este documento descreve **o que o código faz hoje**. Itens ⚠️ e ❌ estão 
 |---|---|---|
 | Coleta limitada à finalidade do serviço (Art. 6º, I) | ✅ | Coletados: nome, e-mail, senha (hash) e dados bancários lidos via Pluggy |
 | Consentimento explícito antes de integrar conta bancária | ✅ | A conexão só ocorre quando o usuário abre o Pluggy Connect (`POST /consentimentos` recebe o `itemId` que o widget devolve) |
-| Finalidade informada ao usuário | ⚠️ | A tela **Conectar conta** é o ponto de consentimento, mas não há texto de finalidade/política de privacidade no app |
+| Finalidade informada ao usuário | ✅ | Antes de abrir o Pluggy Connect o app mostra o termo de finalidade e só prossegue com o aceite; o mesmo texto fica em Perfil → Privacidade e consentimento |
 | Dados de menores não coletados | ✅ | Sem campo de data de nascimento |
 
 ### 1.2 Direitos do titular
@@ -144,7 +144,7 @@ Aplique correções de segurança antes de cada publicação.
 
 | Prioridade | Pendência |
 |---|---|
-| Alta | Texto de finalidade e política de privacidade reais no app (a URL do manifest da Alexa ainda é um marcador) |
+| Média | Publicar uma página de política de privacidade (a URL do manifest da Alexa ainda é um marcador) |
 | Baixa | Rotação da `ENCRYPTION_KEY` (re-criptografar os `itemId`) |
 | Baixa | Criptografar o cache SQLite do app |
 

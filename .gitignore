@@ -25,3 +25,8 @@ gradlew.bat
 # Alexa skill: pacote da Lambda
 alexa-skill/lambda-build/
 alexa-skill/lambda.zip
+
+# Firebase (configuração local; não versionar)
+google-services.json
+GoogleService-Info.plist
+*-firebase-adminsdk-*.json

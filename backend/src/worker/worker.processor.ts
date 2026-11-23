@@ -2,6 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { AlexaService } from '../alexa/alexa.service.js';
+import { AuditService } from '../audit/audit.service.js';
 import { FcmService } from '../fcm/fcm.service.js';
 import { NotificacaoService } from '../notificacao/notificacao.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -31,6 +32,7 @@ export class SyncWorkerProcessor extends WorkerHost {
     private readonly notificacaoService: NotificacaoService,
     private readonly fcmService: FcmService,
     private readonly alexaService: AlexaService,
+    private readonly audit: AuditService,
   ) {
     super();
   }
@@ -96,11 +98,14 @@ export class SyncWorkerProcessor extends WorkerHost {
               enviado ? 'ENVIADO' : 'FALHA',
               new Date(),
             );
+            await this.audit.registrar(usuarioId, enviado ? 'NOTIFICACAO_PUSH_ENVIADA' : 'NOTIFICACAO_PUSH_FALHA', 'notificacao');
           }
 
           if (notif && enviaAlexa(regra.canal)) {
             await this.alexaService.enviarAlertaTransacao(usuarioId, notif.mensagem);
+            await this.audit.registrar(usuarioId, 'NOTIFICACAO_ALEXA_SOLICITADA', 'notificacao');
           }
+          if (notif) await this.audit.registrar(usuarioId, 'NOTIFICACAO_GERADA', 'notificacao');
         }
       }
     }
@@ -164,10 +169,13 @@ export class SyncWorkerProcessor extends WorkerHost {
         if (notif && fcmToken && enviaPush(regra.canal)) {
           const enviado = await this.fcmService.enviar(fcmToken, 'Saldo baixo', mensagem);
           await this.notificacaoService.atualizarStatus(notif.id, enviado ? 'ENVIADO' : 'FALHA', new Date());
+          await this.audit.registrar(usuarioId, enviado ? 'NOTIFICACAO_PUSH_ENVIADA' : 'NOTIFICACAO_PUSH_FALHA', 'notificacao');
         }
         if (notif && enviaAlexa(regra.canal)) {
           await this.alexaService.enviarAlertaTransacao(usuarioId, mensagem);
+          await this.audit.registrar(usuarioId, 'NOTIFICACAO_ALEXA_SOLICITADA', 'notificacao');
         }
+        if (notif) await this.audit.registrar(usuarioId, 'NOTIFICACAO_GERADA', 'notificacao');
       }
     }
   }

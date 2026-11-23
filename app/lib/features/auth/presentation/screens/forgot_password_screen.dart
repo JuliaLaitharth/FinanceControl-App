@@ -108,6 +108,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                               )
                             : const Text('Enviar código'),
                       ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute<void>(builder: (_) => const ResetPasswordScreen()),
+                        ),
+                        child: const Text('Já tenho o código'),
+                      ),
                     ],
                   ),
                 ),

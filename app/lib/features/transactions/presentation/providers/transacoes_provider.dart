@@ -177,6 +177,9 @@ class TransacoesNotifier extends StateNotifier<TransacoesState> {
     state = state.copyWith(isSincronizando: true, clearError: true);
     try {
       await _repo.sincronizar();
+      // A sincronização roda em segundo plano no servidor (e avalia os alertas); dá um
+      // tempo para ela terminar antes de recarregar a lista.
+      await Future<void>.delayed(const Duration(seconds: 6));
       await carregar(forceApi: true);
     } catch (e) {
       state = state.copyWith(

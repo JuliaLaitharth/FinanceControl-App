@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../accounts/presentation/screens/privacidade_screen.dart';
 import '../../../transactions/presentation/screens/regras_categorizacao_screen.dart';
 import '../../data/auth_repository.dart';
 import '../providers/auth_provider.dart';
@@ -73,6 +74,17 @@ class ProfileScreen extends ConsumerWidget {
 
           // Alexa
           const _AlexaTile(),
+
+          // Privacidade
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Privacidade e consentimento'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const PrivacidadeScreen()),
+            ),
+          ),
 
           // Regras de categorização
           ListTile(

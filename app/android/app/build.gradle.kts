@@ -4,6 +4,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase/FCM: o plugin só entra se o arquivo de configuração estiver no projeto, para o app
+// continuar compilando sem Firebase.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.financecontrol.finance_control"
     compileSdk = flutter.compileSdkVersion

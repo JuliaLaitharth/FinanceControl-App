@@ -195,9 +195,39 @@ Cada sincronização avalia as regras ativas do usuário **sobre as transações
 
 ## Push (FCM)
 
-**Backend pronto, app pendente.** O backend envia o push quando há `FCM_SERVER_KEY` (JSON da conta de serviço do Firebase, puro ou em base64) e o aparelho registrou o token em `PATCH /auth/fcm-token`. Sem a chave, o envio fica desligado e o log avisa.
+**Código pronto no backend e no app; falta a configuração do Firebase** (feita fora do código). O push é **opt-in**: sem a configuração, o app roda normalmente e os alertas continuam aparecendo na aba **Alertas**.
 
-Falta no app: o pacote `firebase_messaging`, os arquivos `google-services.json` (Android) e `GoogleService-Info.plist` (iOS), o pedido de permissão e o registro do token. No iOS, o push exige uma chave APNs, isto é, **conta Apple Developer paga**.
+Como funciona: o app (com `FCM_ENABLED=true`) inicia o Firebase, pede permissão, envia o token do aparelho para `PATCH /auth/fcm-token` e o backend envia o push (`FCM_SERVER_KEY`) quando uma regra com canal **Push** ou **Push + Alexa** dispara. Com o app aberto, o sistema não exibe a notificação; o app mostra um aviso na tela e atualiza o contador.
+
+### 1. Projeto Firebase (comum aos dois sistemas)
+
+1. Em [console.firebase.google.com](https://console.firebase.google.com) → **Adicionar projeto** (pode desativar o Google Analytics).
+2. **Configurações do projeto → Contas de serviço → Gerar nova chave privada**. Isso baixa um JSON: é a credencial do **backend**.
+3. No Railway (serviço da API → **Variables**), crie `FCM_SERVER_KEY` com o conteúdo do JSON (puro ou em base64: `base64 -i arquivo.json | pbcopy`). Não cole o JSON no chat nem o versione.
+
+### 2. Android (não exige conta paga)
+
+1. No Firebase → **Adicionar app → Android**; o nome do pacote é `com.financecontrol.finance_control`.
+2. Baixe o `google-services.json` e salve em `app/android/app/google-services.json` (o arquivo é ignorado pelo Git; o plugin do Gradle só é aplicado quando ele existe).
+3. Rode com o push ligado:
+
+```bash
+cd app
+flutter run -d <id-android> --dart-define=API_BASE_URL=https://SUA-URL --dart-define=FCM_ENABLED=true
+```
+
+4. Aceite a permissão de notificações, crie uma regra com canal **Push** e dispare-a (por exemplo, uma regra de saldo mínimo com limite alto, depois uma sincronização). Se o app estiver fechado, a notificação aparece na bandeja do Android.
+
+### 3. iOS (exige conta Apple Developer paga)
+
+Push no iPhone precisa de uma chave **APNs**, que só existe na conta paga (US$ 99/ano). Com a conta gratuita o app continua funcionando sem push. Com a conta paga:
+
+1. No portal Apple Developer, crie uma chave **APNs** (`.p8`) e envie-a no Firebase → **Configurações do projeto → Cloud Messaging → Apple app configuration**.
+2. No Firebase, adicione um app iOS com o *Bundle Identifier* do Xcode e salve o `GoogleService-Info.plist` em `app/ios/Runner/` (adicione-o ao target *Runner* no Xcode).
+3. No Xcode → *Runner → Signing & Capabilities*, adicione **Push Notifications** e **Background Modes → Remote notifications**.
+4. Rode com `--dart-define=FCM_ENABLED=true`.
+
+Sem o `FCM_ENABLED`, nenhuma chamada ao Firebase é feita; isso evita que o app caia no iOS por falta do `GoogleService-Info.plist`.
 
 ---
 

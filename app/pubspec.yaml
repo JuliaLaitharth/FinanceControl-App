@@ -35,6 +35,8 @@ dependencies:
   # Gráficos (pós-MVP RF09)
   fl_chart: ^0.68.0
   flutter_pluggy_connect: ^3.0.1
+  firebase_core: ^5.2.0
+  firebase_messaging: ^17.1.0
 
 dev_dependencies:
   flutter_test:

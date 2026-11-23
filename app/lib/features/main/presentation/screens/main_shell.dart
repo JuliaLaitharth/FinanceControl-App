@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/push/push_service.dart';
 import '../../../accounts/presentation/providers/accounts_provider.dart';
 import '../../../auth/presentation/screens/profile_screen.dart';
 import '../../../dashboard/presentation/providers/dashboard_provider.dart';
@@ -32,9 +33,23 @@ class _MainShellState extends ConsumerState<MainShell> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref.read(notificacoesProvider.notifier).carregarContagem(),
-    );
+    Future.microtask(() {
+      ref.read(notificacoesProvider.notifier).carregarContagem();
+      // Push (opt-in; ver FCM_ENABLED): registra o token e avisa quando chega um alerta.
+      ref.read(pushServiceProvider).iniciar(aoReceber: (titulo, corpo) {
+        if (!mounted) return;
+        ref.read(notificacoesProvider.notifier).carregarContagem();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text([titulo, corpo].whereType<String>().join(': '))),
+        );
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    ref.read(pushServiceProvider).parar();
+    super.dispose();
   }
 
   /// O IndexedStack monta as abas uma única vez, na abertura; sem isto, dados
