@@ -76,13 +76,14 @@ export class AlexaService {
   ): Promise<void> {
     try {
       const { default: axios } = await import('axios');
+      // Formato da API de Proactive Events: o nome do evento fica em `event.name`.
       const evento = {
         timestamp: new Date().toISOString(),
         referenceId: `fc-${Date.now()}`,
-        payload: {
-          type: 'AMAZON.MessageAlert.Activated',
-          version: '1.0',
-          data: {
+        expiryTime: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+        event: {
+          name: 'AMAZON.MessageAlert.Activated',
+          payload: {
             state: { status: 'UNREAD', freshness: 'NEW' },
             messageGroup: {
               creator: { name: 'FinanceControl' },
@@ -92,7 +93,6 @@ export class AlexaService {
           },
         },
         relevantAudience: { type: 'Unicast', payload: { user: alexaUserId } },
-        expiryTime: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
       };
 
       await axios.post(
