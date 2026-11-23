@@ -27,12 +27,20 @@ export class AlexaService {
   }
 
   async enviarAlertaTransacao(usuarioId: number, mensagem: string): Promise<void> {
-    if (!this.clientId || !this.clientSecret) return;
+    if (!this.clientId || !this.clientSecret) {
+      this.logger.warn('Alexa: ALEXA_CLIENT_ID/ALEXA_CLIENT_SECRET não configurados; aviso por voz não enviado.');
+      return;
+    }
 
     const vinculo = await this.prisma.vinculoAlexa.findFirst({
       where: { usuarioId, ativo: true, NOT: { alexaUserId: null } },
     });
-    if (!vinculo?.alexaUserId) return;
+    if (!vinculo?.alexaUserId) {
+      this.logger.warn(
+        `Alexa: usuário ${usuarioId} sem vínculo ativo ou sem ID da Alexa (diga "Alexa, abrir controle financeiro" uma vez); aviso não enviado.`,
+      );
+      return;
+    }
 
     const lwaToken = await this.obterLwaToken();
     if (!lwaToken) return;
@@ -56,7 +64,7 @@ export class AlexaService {
       );
       return data.access_token;
     } catch (err) {
-      this.logger.warn('Falha ao obter token LWA para Proactive Events', err);
+      this.logger.warn(`Falha ao obter token LWA para Proactive Events: ${detalheErro(err)}`);
       return null;
     }
   }
@@ -94,7 +102,14 @@ export class AlexaService {
       );
       this.logger.log(`Proactive Event enviado para Alexa user: ${alexaUserId}`);
     } catch (err) {
-      this.logger.warn(`Falha ao enviar Proactive Event para ${alexaUserId}`, err);
+      this.logger.warn(`Falha ao enviar Proactive Event: ${detalheErro(err)}`);
     }
   }
+}
+
+/** Resumo curto do erro do axios (status e corpo), sem cabeçalhos nem credenciais. */
+function detalheErro(err: unknown): string {
+  const e = err as { response?: { status?: number; data?: unknown }; message?: string };
+  if (e?.response) return `HTTP ${e.response.status} ${JSON.stringify(e.response.data)}`;
+  return e?.message ?? String(err);
 }
