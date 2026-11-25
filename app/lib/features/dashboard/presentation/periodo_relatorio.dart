@@ -28,6 +28,23 @@ enum PeriodoRelatorio {
     }
   }
 
+  /// Gráfico mensal do período: quantos meses e qual o último (AAAA-MM; nulo = mês atual).
+  /// "Este mês" e "Mês anterior" comparam 6 meses terminando no mês escolhido.
+  ({int meses, String? referencia, String titulo}) comparacaoMensal(DateTime hoje) {
+    switch (this) {
+      case PeriodoRelatorio.mesAtual:
+        return (meses: 6, referencia: null, titulo: 'Últimos 6 meses');
+      case PeriodoRelatorio.mesAnterior:
+        return (
+          meses: 6,
+          referencia: _fmt(DateTime(hoje.year, hoje.month - 1, 1)).substring(0, 7),
+          titulo: '6 meses até o mês anterior',
+        );
+      case PeriodoRelatorio.tresMeses:
+        return (meses: 3, referencia: null, titulo: 'Últimos 3 meses');
+    }
+  }
+
   static String _fmt(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }

@@ -70,7 +70,7 @@ Os dados de cada aba são recarregados ao abri-la.
 
 ```bash
 flutter analyze
-flutter test          # 52 testes
+flutter test          # 54 testes
 ```
 
 Os testes cobrem restauração de sessão, biometria e tela de bloqueio, regras de alerta, relatórios e períodos. Os plugins nativos são substituídos por implementações falsas (`test/support/fakes.dart`).

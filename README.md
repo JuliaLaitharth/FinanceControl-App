@@ -235,7 +235,7 @@ Todas as rotas `JWT` exigem `Authorization: Bearer <accessToken>`. Um token emit
 | GET | `/transacoes` | JWT | Extrato (`page`, `limit`, `de`, `ate`, `categoriaId`, `tipo`, `contaId`) |
 | POST | `/transacoes/sincronizar` | JWT | Sincronização manual: enfileira o mesmo job do webhook (busca transações e avalia os alertas); responde `{ "enfileirada": true }` |
 | GET | `/transacoes/resumo-categorias` | JWT | Despesas por categoria (`dataInicio`, `dataFim`; sem datas, o mês atual) |
-| GET | `/transacoes/resumo-mensal` | JWT | Receitas e despesas por mês (`meses`) |
+| GET | `/transacoes/resumo-mensal` | JWT | Receitas e despesas por mês (`meses`) (`meses` e `referencia` AAAA-MM opcionais) |
 | PATCH | `/transacoes/:id/categoria` | JWT | Ajustar categoria manualmente |
 | GET | `/categorias` | JWT | Categorias |
 | GET/POST | `/regras-alerta` | JWT | Listar / criar regra |

@@ -202,14 +202,18 @@ export class TransacaoService {
   async resumoMensal(
     usuarioId: number,
     meses: number = 6,
+    referencia?: string,
   ): Promise<{ meses: Array<{ mes: string; receitas: number; despesas: number; saldo: number }> }> {
-    const agora = new Date();
+    // `referencia` (AAAA-MM) é o último mês do gráfico; sem ela, o mês atual.
+    const [ano, mes] = referencia ? referencia.split('-').map(Number) : [];
+    const agora = referencia ? new Date(ano, mes - 1, 1) : new Date();
     const inicio = new Date(agora.getFullYear(), agora.getMonth() - (meses - 1), 1);
+    const fim = new Date(agora.getFullYear(), agora.getMonth() + 1, 1);
 
     const transacoes = await this.prisma.transacao.findMany({
       where: {
         conta: { consentimento: { usuarioId, status: 'ATIVO' } },
-        data: { gte: inicio },
+        data: { gte: inicio, lt: fim },
       },
       select: { valor: true, tipo: true, data: true },
     });

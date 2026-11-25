@@ -19,5 +19,9 @@ final categoriasDashboardProvider =
 
 final resumoMensalProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  return ref.watch(dashboardRepositoryProvider).resumoMensal();
+  final comparacao = ref.watch(periodoRelatorioProvider).comparacaoMensal(DateTime.now());
+  return ref.watch(dashboardRepositoryProvider).resumoMensal(
+        meses: comparacao.meses,
+        referencia: comparacao.referencia,
+      );
 });

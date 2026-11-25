@@ -1,5 +1,6 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -46,9 +47,13 @@ export class TransacaoController {
   resumoMensal(
     @Request() req: { user: { sub: number } },
     @Query('meses') meses?: string,
+    @Query('referencia') referencia?: string,
   ) {
     const n = meses ? Math.min(Math.max(parseInt(meses) || 6, 1), 12) : 6;
-    return this.service.resumoMensal(req.user.sub, n);
+    if (referencia !== undefined && !/^\d{4}-(0[1-9]|1[0-2])$/.test(referencia)) {
+      throw new BadRequestException('referencia deve estar no formato AAAA-MM');
+    }
+    return this.service.resumoMensal(req.user.sub, n, referencia);
   }
 
   @Get('resumo-categorias')

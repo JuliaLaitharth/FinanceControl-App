@@ -26,10 +26,10 @@ class DashboardRepository {
     return List<Map<String, dynamic>>.from(data['categorias'] as List);
   }
 
-  Future<List<Map<String, dynamic>>> resumoMensal({int meses = 6}) async {
+  Future<List<Map<String, dynamic>>> resumoMensal({int meses = 6, String? referencia}) async {
     final res = await _client.dio.get(
       '/transacoes/resumo-mensal',
-      queryParameters: {'meses': meses},
+      queryParameters: {'meses': meses, if (referencia != null) 'referencia': referencia},
     );
     final data = res.data as Map<String, dynamic>;
     return List<Map<String, dynamic>>.from(data['meses'] as List);

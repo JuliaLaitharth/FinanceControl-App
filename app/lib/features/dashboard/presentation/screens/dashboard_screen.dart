@@ -106,7 +106,7 @@ class DashboardScreen extends ConsumerWidget {
             Text('Receitas vs Despesas', style: tt.titleMedium),
             const SizedBox(height: 4),
             Text(
-              'Últimos 6 meses',
+              periodo.comparacaoMensal(DateTime.now()).titulo,
               style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 12),

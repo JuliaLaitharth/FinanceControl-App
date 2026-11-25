@@ -14,6 +14,15 @@ class _FakeDashboardRepo extends DashboardRepository {
   String? ultimoInicio;
   String? ultimoFim;
   int chamadas = 0;
+  int? ultimosMeses;
+  String? ultimaReferencia;
+
+  @override
+  Future<List<Map<String, dynamic>>> resumoMensal({int meses = 6, String? referencia}) async {
+    ultimosMeses = meses;
+    ultimaReferencia = referencia;
+    return [];
+  }
 
   @override
   Future<List<Map<String, dynamic>>> resumoCategorias({
@@ -62,6 +71,32 @@ void main() {
       expect(PeriodoRelatorio.mesAnterior.intervalo(jan).inicio, '2026-12-01');
       expect(PeriodoRelatorio.mesAnterior.intervalo(jan).fim, '2027-01-01');
       expect(PeriodoRelatorio.tresMeses.intervalo(jan).inicio, '2026-11-01');
+    });
+  });
+
+  group('gráfico mensal', () {
+    test('o período escolhido muda a consulta mensal', () async {
+      final repo = _FakeDashboardRepo();
+      final container = ProviderContainer(overrides: [
+        dashboardRepositoryProvider.overrideWithValue(repo),
+      ]);
+      addTearDown(container.dispose);
+
+      await container.read(resumoMensalProvider.future);
+      expect((repo.ultimosMeses, repo.ultimaReferencia), (6, null));
+
+      container.read(periodoRelatorioProvider.notifier).state = PeriodoRelatorio.tresMeses;
+      await container.read(resumoMensalProvider.future);
+      expect((repo.ultimosMeses, repo.ultimaReferencia), (3, null));
+
+      container.read(periodoRelatorioProvider.notifier).state = PeriodoRelatorio.mesAnterior;
+      await container.read(resumoMensalProvider.future);
+      expect(repo.ultimaReferencia, isNotNull);
+    });
+
+    test('"mês anterior" vira o ano em janeiro', () {
+      final c = PeriodoRelatorio.mesAnterior.comparacaoMensal(DateTime(2027, 1, 15));
+      expect((c.meses, c.referencia), (6, '2026-12'));
     });
   });
 

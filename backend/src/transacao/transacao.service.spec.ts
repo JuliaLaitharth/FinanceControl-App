@@ -93,6 +93,21 @@ describe('TransacaoService', () => {
 
   // ─── listar ──────────────────────────────────────────────────────────────
 
+  describe('resumoMensal()', () => {
+    it('termina no mês de referência e não busca transações posteriores', async () => {
+      prisma.transacao.findMany.mockResolvedValue([] as never);
+
+      const r = await service.resumoMensal(42, 3, '2026-01');
+
+      expect(r.meses.map((m) => m.mes)).toEqual(['2025-11', '2025-12', '2026-01']);
+      expect(prisma.transacao.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ data: { gte: new Date(2025, 10, 1), lt: new Date(2026, 1, 1) } }),
+        }),
+      );
+    });
+  });
+
   describe('listar()', () => {
     it('retorna lista paginada de transações do usuário', async () => {
       prisma.transacao.findMany.mockResolvedValue([txBdFake()] as never);
