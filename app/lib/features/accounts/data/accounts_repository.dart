@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/storage/local_database.dart';
 
 final accountsRepositoryProvider = Provider<AccountsRepository>(
   (ref) => AccountsRepository(ref.watch(apiClientProvider)),
@@ -31,7 +32,20 @@ class AccountsRepository {
 
   Future<Map<String, dynamic>> saldoConsolidado() async {
     final res = await _client.dio.get('/contas/saldo');
-    return res.data as Map<String, dynamic>;
+    final saldo = res.data as Map<String, dynamic>;
+    try {
+      await LocalDatabase.salvarSaldo(saldo);
+    } catch (_) {} // falha no cache não pode esconder o saldo recebido
+    return saldo;
+  }
+
+  /// Último saldo recebido, para mostrar na hora e sem internet (RNF09).
+  Future<Map<String, dynamic>?> saldoDoCache() async {
+    try {
+      return await LocalDatabase.buscarSaldo();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<dynamic>> listarContas() async {

@@ -87,8 +87,9 @@ class HomeScreen extends ConsumerWidget {
                             if (sync == null) return const SizedBox.shrink();
                             final dt = DateTime.tryParse(sync.toString());
                             if (dt == null) return const SizedBox.shrink();
+                            final semConexao = saldo['doCache'] == true ? 'Sem conexão · ' : '';
                             return Text(
-                              'Atualizado: ${DateFormat('dd/MM/yy HH:mm', 'pt_BR').format(dt.toLocal())}',
+                              '${semConexao}Atualizado: ${DateFormat('dd/MM/yy HH:mm', 'pt_BR').format(dt.toLocal())}',
                               style: TextStyle(
                                 color: cs.onPrimaryContainer.withAlpha(180),
                                 fontSize: 12,

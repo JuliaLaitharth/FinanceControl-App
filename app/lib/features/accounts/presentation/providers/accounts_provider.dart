@@ -97,7 +97,16 @@ final accountsProvider =
 
 // ─── Provider de saldo consolidado ───────────────────────────────────────────
 
-final saldoProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+/// Emite primeiro o saldo salvo no aparelho e depois o da API. Sem internet, o salvo permanece,
+/// marcado com `doCache` para a tela avisar; sem nada salvo, o erro aparece.
+final saldoProvider = StreamProvider<Map<String, dynamic>>((ref) async* {
   final repo = ref.watch(accountsRepositoryProvider);
-  return repo.saldoConsolidado();
+  final salvo = await repo.saldoDoCache();
+  if (salvo != null) yield salvo;
+  try {
+    yield await repo.saldoConsolidado();
+  } catch (_) {
+    if (salvo == null) rethrow;
+    yield {...salvo, 'doCache': true};
+  }
 });

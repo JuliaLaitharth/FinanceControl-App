@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
@@ -14,7 +16,7 @@ class LocalDatabase {
     final path = join(await getDatabasesPath(), 'finance_control.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, _) => _createTables(db),
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) {
@@ -26,11 +28,43 @@ class LocalDatabase {
             'ALTER TABLE transacao_cache ADD COLUMN categoria_nome TEXT',
           );
         }
+        if (oldVersion < 3) await _criarResumoCache(db);
       },
     );
   }
 
+  /// Guarda a última resposta de consultas consolidadas (ex.: saldo), em JSON.
+  static Future<void> _criarResumoCache(Database db) => db.execute('''
+      CREATE TABLE resumo_cache (
+        chave       TEXT PRIMARY KEY,
+        conteudo    TEXT NOT NULL,
+        atualizado  TEXT NOT NULL
+      )
+    ''');
+
+  static Future<void> salvarSaldo(Map<String, dynamic> saldo) async {
+    final db = await instance;
+    await db.insert(
+      'resumo_cache',
+      {
+        'chave': 'saldo',
+        'conteudo': jsonEncode(saldo),
+        'atualizado': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<Map<String, dynamic>?> buscarSaldo() async {
+    final db = await instance;
+    final rows = await db.query('resumo_cache', where: 'chave = ?', whereArgs: ['saldo'], limit: 1);
+    if (rows.isEmpty) return null;
+    return jsonDecode(rows.first['conteudo'] as String) as Map<String, dynamic>;
+  }
+
   static Future<void> _createTables(Database db) async {
+    await _criarResumoCache(db);
+
     await db.execute('''
       CREATE TABLE saldo_cache (
         conta_id    INTEGER PRIMARY KEY,
@@ -127,6 +161,7 @@ class LocalDatabase {
   static Future<void> limpar() async {
     final db = await instance;
     await db.delete('saldo_cache');
+    await db.delete('resumo_cache');
     await db.delete('transacao_cache');
     debugPrint('[LocalDatabase] Cache limpo');
   }

@@ -62,7 +62,7 @@ Os dados de cada aba são recarregados ao abri-la.
 
 ## Comportamentos importantes
 
-- **Sessão:** o app restaura a sessão ao abrir. Sem rede, mantém a sessão e usa o cache; se o servidor recusar a renovação, volta ao login.
+- **Sessão:** o app restaura a sessão ao abrir. Sem rede, mantém a sessão e usa o cache (saldo e extrato salvos no aparelho); se o servidor recusar a renovação, volta ao login.
 - **Biometria:** bloqueia ao abrir e após 30 segundos em segundo plano; depois de 3 falhas (ou sem biometria no aparelho) exige a senha, o que encerra a sessão local. Ativar exige confirmar a biometria na hora. No Android usa `FlutterFragmentActivity` e um tema `AppCompat`; no iOS, `NSFaceIDUsageDescription`.
 - **Erros de conexão:** login e cadastro mostram "Não foi possível conectar ao servidor" quando a API não responde, o que normalmente indica um app instalado com a URL errada.
 
@@ -70,7 +70,7 @@ Os dados de cada aba são recarregados ao abri-la.
 
 ```bash
 flutter analyze
-flutter test          # 48 testes
+flutter test          # 52 testes
 ```
 
 Os testes cobrem restauração de sessão, biometria e tela de bloqueio, regras de alerta, relatórios e períodos. Os plugins nativos são substituídos por implementações falsas (`test/support/fakes.dart`).
