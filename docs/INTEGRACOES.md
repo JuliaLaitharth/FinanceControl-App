@@ -130,7 +130,13 @@ Outros sintomas: *"E-mail ou senha incorretos"* na página de login significa qu
 
 ## Alertas proativos por voz
 
-Opcional. Faz a Alexa avisar que há uma notificação (o anel do Echo acende). O evento `AMAZON.MessageAlert.Activated` **não lê o texto do alerta**: o conteúdo completo continua no app.
+Opcional. Faz a Alexa avisar que há uma notificação (o anel do Echo acende). O evento `AMAZON.MessageAlert.Activated` **não lê o texto do alerta**. Para ouvir o conteúdo, o usuário diz **"Alexa, abrir controle financeiro"** e depois **"ler meus alertas"** (intenção `LerAlertasIntent`): a skill lê até 3 alertas não lidos (`GET /notificacoes?naoLidas=true`). A leitura não marca os alertas como lidos, porque o token da Alexa é somente de consulta.
+
+Ao alterar a skill, publique as duas partes: o código (`npm run package` e envio do `lambda.zip` na AWS Lambda) e o modelo de voz:
+
+```bash
+ask smapi set-interaction-model -s SKILL_ID -g development -l pt-BR --interaction-model file:models/pt-BR/pt-BR.json
+```
 
 A página **Permissions** do console de uma skill personalizada **não tem** essa opção. É preciso usar a **ASK CLI**:
 

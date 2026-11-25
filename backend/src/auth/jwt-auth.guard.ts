@@ -1,10 +1,11 @@
 import { ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
-// RNF01 / HU11: o token da Alexa só pode consultar saldo e resumo de gastos (e registrar o id Alexa).
+// RNF01 / HU11: o token da Alexa só consulta saldo, resumo de gastos e alertas (e registra o id Alexa).
 const ROTAS_ALEXA: Array<{ metodo: string; caminho: string }> = [
   { metodo: 'GET', caminho: '/contas/saldo' },
   { metodo: 'GET', caminho: '/transacoes/resumo-categorias' },
+  { metodo: 'GET', caminho: '/notificacoes' },
   { metodo: 'PATCH', caminho: '/auth/alexa-id' },
 ];
 

@@ -13,7 +13,7 @@ export const HelpHandler: RequestHandler = {
     return input.responseBuilder
       .speak(
         'Você pode me perguntar: qual é meu saldo, como estão minhas finanças, ' +
-          'ou quanto gastei este mês.',
+          'quanto gastei este mês, ou pedir para ler meus alertas.',
       )
       .reprompt('Como posso ajudar?')
       .getResponse();

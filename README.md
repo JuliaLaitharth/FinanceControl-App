@@ -205,7 +205,7 @@ A lista comentada está em [`backend/.env.example`](backend/.env.example).
 
 ## API — endpoints
 
-Todas as rotas `JWT` exigem `Authorization: Bearer <accessToken>`. Um token emitido para a Alexa só acessa `GET /contas/saldo`, `GET /transacoes/resumo-categorias` e `PATCH /auth/alexa-id`.
+Todas as rotas `JWT` exigem `Authorization: Bearer <accessToken>`. Um token emitido para a Alexa só acessa `GET /contas/saldo`, `GET /transacoes/resumo-categorias`, `GET /notificacoes` (para ler os alertas) e `PATCH /auth/alexa-id`.
 
 | Método | Rota | Auth | Descrição |
 |---|---|---|---|

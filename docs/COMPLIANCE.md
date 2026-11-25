@@ -59,7 +59,7 @@ Em caso de incidente de segurança com dados pessoais, a ANPD deve ser notificad
 | Revogação de sessões | ✅ | Logout e alteração/redefinição de senha revogam as sessões |
 | Resposta genérica no login | ✅ | "E-mail ou senha incorretos", com `bcrypt.compare` contra um hash falso quando o e-mail não existe (sem diferença de tempo) |
 | Guard JWT nas rotas protegidas | ✅ | `JwtAuthGuard` nos controllers autenticados |
-| Escopo restrito para o token da Alexa | ✅ | O token da Alexa só acessa `GET /contas/saldo`, `GET /transacoes/resumo-categorias` e `PATCH /auth/alexa-id`; as demais rotas respondem `403` |
+| Escopo restrito para o token da Alexa | ✅ | O token da Alexa só acessa `GET /contas/saldo`, `GET /transacoes/resumo-categorias`, `GET /notificacoes` (leitura dos alertas, auditada) e `PATCH /auth/alexa-id`; as demais rotas respondem `403` |
 | Isolamento entre usuários | ✅ | Consultas filtradas pelo usuário do token (`userId`) |
 | `JWT_SECRET` obrigatório | ✅ | A API não sobe sem ele; não há valor padrão |
 | Limite de requisições (rate limiting) | ✅ | 120 por minuto por IP em geral; login 20/min; cadastro, recuperação e redefinição de senha 10/min (`@nestjs/throttler`); o webhook do Pluggy é isento. Além do bloqueio de conta após 5 falhas de login |

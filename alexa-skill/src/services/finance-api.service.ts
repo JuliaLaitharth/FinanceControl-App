@@ -28,6 +28,15 @@ export class FinanceApiService {
     return data;
   }
 
+  async getAlertasNaoLidos(): Promise<Array<{ mensagem: string }>> {
+    const { data } = await axios.get(`${API_BASE_URL}/notificacoes`, {
+      headers: this.headers,
+      params: { naoLidas: true },
+      timeout: 8000,
+    });
+    return data;
+  }
+
   async registrarAlexaId(alexaUserId: string): Promise<void> {
     await axios.patch(
       `${API_BASE_URL}/auth/alexa-id`,

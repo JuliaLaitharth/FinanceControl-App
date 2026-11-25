@@ -35,6 +35,19 @@
           ]
         },
         {
+          "name": "LerAlertasIntent",
+          "slots": [],
+          "samples": [
+            "ler meus alertas",
+            "leia meus alertas",
+            "quais são meus alertas",
+            "tenho algum alerta",
+            "meus alertas",
+            "ler os alertas",
+            "o que diz o alerta"
+          ]
+        },
+        {
           "name": "AMAZON.HelpIntent"
         },
         {

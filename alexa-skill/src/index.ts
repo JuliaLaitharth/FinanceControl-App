@@ -2,6 +2,7 @@ import { DefaultApiClient, SkillBuilders } from 'ask-sdk-core';
 import { LaunchRequestHandler } from './handlers/launch.handler';
 import { ConsultarSaldoHandler } from './handlers/consultar-saldo.handler';
 import { ConsultarGastosHandler } from './handlers/consultar-gastos.handler';
+import { LerAlertasHandler } from './handlers/ler-alertas.handler';
 import { HelpHandler, CancelAndStopHandler, SessionEndedHandler, ErrorHandler } from './handlers/common.handlers';
 
 const skill = SkillBuilders.custom()
@@ -9,6 +10,7 @@ const skill = SkillBuilders.custom()
     LaunchRequestHandler,
     ConsultarSaldoHandler,
     ConsultarGastosHandler,
+    LerAlertasHandler,
     HelpHandler,
     CancelAndStopHandler,
     SessionEndedHandler,

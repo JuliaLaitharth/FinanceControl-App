@@ -30,7 +30,7 @@ export const LaunchRequestHandler: RequestHandler = {
       .speak(
         'Olá! Bem-vindo ao FinanceControl. ' +
           'Você pode me perguntar: como estão minhas finanças, qual é meu saldo, ' +
-          'ou quanto gastei este mês.',
+          'quanto gastei este mês, ou pedir para ler meus alertas.',
       )
       .reprompt('Como posso ajudar com suas finanças?')
       .getResponse();

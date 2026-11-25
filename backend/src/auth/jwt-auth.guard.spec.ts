@@ -18,6 +18,12 @@ describe('JwtAuthGuard — escopo Alexa', () => {
     ).toBe(alexa);
   });
 
+  it('permite só a leitura dos alertas, sem marcar como lido', () => {
+    expect(guard.handleRequest(null, alexa, null, ctx('GET', '/notificacoes?naoLidas=true'))).toBe(alexa);
+    expect(() => guard.handleRequest(null, alexa, null, ctx('PATCH', '/notificacoes/ler-todas'))).toThrow(ForbiddenException);
+    expect(() => guard.handleRequest(null, alexa, null, ctx('GET', '/notificacoes/contagem'))).toThrow(ForbiddenException);
+  });
+
   it('bloqueia qualquer outra rota', () => {
     expect(() => guard.handleRequest(null, alexa, null, ctx('GET', '/transacoes'))).toThrow(ForbiddenException);
     expect(() => guard.handleRequest(null, alexa, null, ctx('DELETE', '/auth/conta'))).toThrow(ForbiddenException);
