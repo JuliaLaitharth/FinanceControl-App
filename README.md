@@ -2,7 +2,6 @@
 
 Assistente financeiro pessoal com integração Open Finance (Pluggy), app Flutter, API NestJS e skill Alexa, com foco em LGPD.
 
-> Projeto acadêmico — DVP v3.0 — Universidade de Passo Fundo
 
 ---
 
