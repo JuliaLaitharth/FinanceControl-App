@@ -199,6 +199,16 @@ Cada sincronização avalia as regras ativas do usuário **sobre as transações
 
 ---
 
+## Sincronização agendada
+
+Além do webhook do Pluggy e do botão de sincronizar, o servidor sincroniza **sozinho** todas as contas conectadas a cada `SYNC_INTERVALO_MINUTOS` (padrão **15**, `0` desliga, mínimo 1) e avalia as regras de alerta. O agendamento fica no Redis (BullMQ), então reiniciar a API não o duplica, e uma sincronização do mesmo usuário não se acumula na fila.
+
+- O alerta de **saldo mínimo** continua limitado a um aviso por regra a cada 24 h.
+- Alertas de transação e Pix só disparam para lançamentos **novos**.
+- Intervalos curtos aumentam as chamadas à API do Pluggy: use `1` apenas em demonstrações.
+
+---
+
 ## Push (FCM)
 
 **Código pronto no backend e no app; falta a configuração do Firebase** (feita fora do código). O push é **opt-in**: sem a configuração, o app roda normalmente e os alertas continuam aparecendo na aba **Alertas**.

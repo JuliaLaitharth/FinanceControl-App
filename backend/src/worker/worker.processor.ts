@@ -1,6 +1,6 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { AlexaService } from '../alexa/alexa.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { FcmService } from '../fcm/fcm.service.js';
@@ -14,6 +14,8 @@ export interface PluggySyncJobData {
 }
 
 export const PLUGGY_SYNC_QUEUE = 'pluggy-sync';
+/** Job periódico que enfileira a sincronização de cada usuário com conta conectada. */
+export const JOB_AGENDAR = 'agendar';
 
 /** Canal da regra: PUSH (app), ALEXA (alerta proativo) ou AMBOS. */
 export const enviaPush = (canal: string): boolean => canal === 'PUSH' || canal === 'AMBOS';
@@ -33,11 +35,37 @@ export class SyncWorkerProcessor extends WorkerHost {
     private readonly fcmService: FcmService,
     private readonly alexaService: AlexaService,
     private readonly audit: AuditService,
+    @InjectQueue(PLUGGY_SYNC_QUEUE) private readonly fila: Queue<PluggySyncJobData>,
   ) {
     super();
   }
 
+  /** Um job por usuário; a deduplicação evita acumular se a anterior ainda estiver na fila. */
+  private async agendarUsuarios(): Promise<void> {
+    const usuarios = await this.prisma.consentimento.findMany({
+      where: { status: 'ATIVO' },
+      select: { usuarioId: true },
+      distinct: ['usuarioId'],
+    });
+    for (const { usuarioId } of usuarios) {
+      await this.fila.add(
+        'sync',
+        { usuarioId, event: 'agendado' },
+        {
+          deduplication: { id: `agendado-${usuarioId}` },
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5_000 },
+          removeOnComplete: 100,
+          removeOnFail: 50,
+        },
+      );
+    }
+    this.logger.log(`Sincronização agendada: ${usuarios.length} usuário(s) enfileirado(s).`);
+  }
+
   async process(job: Job<PluggySyncJobData>): Promise<void> {
+    if (job.name === JOB_AGENDAR) return this.agendarUsuarios();
+
     const { usuarioId, event } = job.data;
     this.logger.log(`Processando job ${job.id} — evento: ${event}, usuário: ${usuarioId}`);
 

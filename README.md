@@ -197,6 +197,8 @@ A lista comentada está em [`backend/.env.example`](backend/.env.example).
 | `ALEXA_SKILL_STAGE` | `development` enquanto a skill não for publicada; `live` depois |
 | `ALEXA_CLIENT_ID` / `ALEXA_CLIENT_SECRET` | Credenciais da skill para os alertas por voz (opcionais) |
 
+**Sincronização agendada:** `SYNC_INTERVALO_MINUTOS` (padrão 15; `0` desliga; mínimo 1) define de quanto em quanto tempo o servidor sincroniza as contas e avalia os alertas, sem o usuário abrir o app.
+
 **Opcionais:** `FCM_SERVER_KEY` (JSON da conta de serviço do Firebase, puro ou em base64; sem ele o push fica desligado), `PORT`, `NODE_ENV`, `MIGRATE_MAX_TENTATIVAS` e `MIGRATE_ESPERA_SEGUNDOS` (espera pelo banco na subida).
 
 > `RESEND_API_KEY` e `MAIL_FROM` ativam o envio do código de recuperação de senha (veja [E-mail](docs/INTEGRACOES.md#e-mail)); sem a chave nenhum e-mail é enviado. `API_BASE_URL` é usada pela Lambda da Alexa, não pelo backend.

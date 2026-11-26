@@ -64,7 +64,7 @@ src/
 
 ## Fila de sincronização
 
-O job `pluggy-sync` (BullMQ, 3 tentativas com espera exponencial) é criado quando uma conta é conectada e quando chega um webhook do Pluggy. Ele sincroniza contas e transações (90 dias), categoriza e avalia as regras de alerta **sobre as transações novas**.
+O job `pluggy-sync` (BullMQ, 3 tentativas com espera exponencial) é criado quando uma conta é conectada, quando chega um webhook do Pluggy, na sincronização manual e pelo agendamento periódico (`SYNC_INTERVALO_MINUTOS`, padrão 15). Ele sincroniza contas e transações (90 dias), categoriza e avalia as regras de alerta **sobre as transações novas**.
 
 ## Scripts de operação (`scripts/`)
 

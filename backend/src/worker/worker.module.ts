@@ -1,5 +1,6 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { AgendamentoService } from './agendamento.service.js';
 import { NotificacaoModule } from '../notificacao/notificacao.module.js';
 import { TransacaoModule } from '../transacao/transacao.module.js';
 import { PLUGGY_SYNC_QUEUE, SyncWorkerProcessor } from './worker.processor.js';
@@ -10,7 +11,7 @@ import { PLUGGY_SYNC_QUEUE, SyncWorkerProcessor } from './worker.processor.js';
     TransacaoModule,
     NotificacaoModule,
   ],
-  providers: [SyncWorkerProcessor],
+  providers: [SyncWorkerProcessor, AgendamentoService],
   exports: [BullModule],
 })
 export class WorkerModule {}
